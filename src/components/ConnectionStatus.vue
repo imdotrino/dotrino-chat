@@ -32,7 +32,7 @@
         </svg>
       </button>
 
-      <dotrino-support href="https://ko-fi.com/dotrino" repo="dotrino/simple-websocket-chat" discord="https://discord.gg/D648uq7cth"></dotrino-support>
+      <dotrino-support href="https://ko-fi.com/dotrino" repo="imdotrino/dotrino-chat" discord="https://discord.gg/D648uq7cth"></dotrino-support>
     </div>
 
     <!-- Mi perfil (botón del header, a la izquierda de la moneda): mismo Web
