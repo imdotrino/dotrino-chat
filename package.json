@@ -1,0 +1,32 @@
+{
+  "name": "simple-websocket-chat",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@dotrino/identity": "0.9.1",
+    "@dotrino/nav": "0.2.0",
+    "@dotrino/profile": "0.2.1",
+    "@dotrino/proxy-client": "^0.6.0",
+    "@dotrino/reputation": "0.3.1",
+    "@dotrino/store": "^0.3.0",
+    "@dotrino/support": "^0.3.9",
+    "pinia": "^3.0.4",
+    "vue": "^3.5.25"
+  },
+  "devDependencies": {
+    "@pinia/testing": "^1.0.0",
+    "@vitejs/plugin-vue": "^6.0.2",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^15.11.0",
+    "vite": "^7.3.1",
+    "vitest": "^2.1.0"
+  }
+}
