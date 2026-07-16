@@ -17,7 +17,7 @@
     "@dotrino/proxy-client": "0.6.3",
     "@dotrino/reputation": "0.8.0",
     "@dotrino/store": "0.4.0",
-    "@dotrino/topbar": "0.3.0",
+    "@dotrino/topbar": "0.4.0",
     "pinia": "^3.0.4",
     "vue": "^3.5.25"
   },
