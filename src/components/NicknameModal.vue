@@ -1,13 +1,13 @@
 <template>
   <div v-if="show" class="nickname-modal-overlay">
     <div class="nickname-modal">
-      <h2>Welcome to Dotrino Chat</h2>
-      <p>Enter your nickname to get started</p>
+      <h2>{{ t.nick.title }}</h2>
+      <p>{{ t.nick.subtitle }}</p>
 
       <input
         v-model="inputName"
         type="text"
-        placeholder="Nickname (3-20 chars)"
+        :placeholder="t.nick.placeholder"
         maxlength="20"
         @keyup.enter="submit"
         :disabled="saving"
@@ -17,7 +17,7 @@
       <p v-if="error" class="error">{{ error }}</p>
 
       <button @click="submit" class="primary" :disabled="saving">
-        {{ saving ? 'Saving…' : 'Join Chat' }}
+        {{ saving ? t.nick.saving : t.nick.submit }}
       </button>
     </div>
   </div>
@@ -27,10 +27,16 @@
 import { ref, computed } from 'vue'
 import { useConnectionStore } from '../stores/connectionStore'
 
+const props = defineProps({
+  t: { type: Object, required: true }
+})
+
 const connectionStore = useConnectionStore()
 
 const inputName = ref('')
-const error = ref('')
+// Guardamos la clave del aviso, no su texto: así también cambia de idioma.
+const errorKey = ref('')
+const error = computed(() => (errorKey.value ? props.t.nick[errorKey.value] : ''))
 
 const show = computed(() => connectionStore.nicknameHydrated && !connectionStore.nicknameSet)
 
@@ -40,27 +46,27 @@ const submit = async () => {
   const name = inputName.value.trim()
 
   if (name.length < 3) {
-    error.value = 'Nickname must be at least 3 characters'
+    errorKey.value = 'tooShort'
     return
   }
 
   if (name.length > 20) {
-    error.value = 'Nickname must be max 20 characters'
+    errorKey.value = 'tooLong'
     return
   }
 
   if (!/^[a-zA-Z0-9_]+$/.test(name)) {
-    error.value = 'Nickname can only contain letters, numbers, and underscore'
+    errorKey.value = 'invalid'
     return
   }
 
   saving.value = true
-  error.value = ''
+  errorKey.value = ''
   try {
     // Se guarda en el vault de identidad; sin identidad no se puede continuar.
     await connectionStore.setNickname(name)
   } catch (e) {
-    error.value = 'No se pudo guardar en tu identidad. Reintenta.'
+    errorKey.value = 'saveFailed'
     console.error('setNickname failed:', e)
   } finally {
     saving.value = false

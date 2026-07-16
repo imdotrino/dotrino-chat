@@ -122,7 +122,8 @@ describe('roomStore — presencia con eventos del proxy', () => {
 
       expect(room.members.find(m => m.token === 'XYZW')).toBeUndefined()
       const sysMsg = room.messages.find(m => m.type === 'system')
-      expect(sysMsg.text).toBe('bob left')
+      // El aviso guarda la clave + los datos; el texto lo arma la vista (i18n).
+      expect(sysMsg).toMatchObject({ key: 'left', params: { nickname: 'bob' } })
     })
 
     it('ignora left de otro canal', () => {
@@ -147,7 +148,7 @@ describe('roomStore — presencia con eventos del proxy', () => {
 
       expect(room.members.find(m => m.token === 'XYZW')).toBeUndefined()
       const sysMsg = room.messages.find(m => m.type === 'system')
-      expect(sysMsg.text).toBe('alice disconnected')
+      expect(sysMsg).toMatchObject({ key: 'disconnected', params: { nickname: 'alice' } })
     })
 
     it('procesa disconnected forma legacy (sin channel) si el miembro existe', () => {

@@ -1,5 +1,5 @@
 <template>
-  <NicknameModal />
+  <NicknameModal :t="t" />
 
   <div class="app-container" :data-mobile-view="mobileView">
     <!-- Barra superior estándar del ecosistema (CONVENCIONES §5): marca, volver,
@@ -11,22 +11,27 @@
       icon="./icon.svg"
       brand-href="./"
       profile
+      :lang.attr="lang"
       support-href="https://ko-fi.com/dotrino"
       support-repo="imdotrino/dotrino-chat"
       support-discord="https://discord.gg/D648uq7cth"
+      @dotrino-lang="onLang"
     >
-      <ConnectionStatus />
+      <ConnectionStatus :t="t" />
     </dotrino-topbar>
 
     <div class="main-layout">
-      <RoomList class="panel panel-rooms" />
+      <RoomList class="panel panel-rooms" :t="t" />
       <ChatRoom
         class="panel panel-chat"
+        :t="t"
         @back="mobileView = 'rooms'"
         @show-members="mobileView = 'members'"
       />
       <MemberList
         class="panel panel-members"
+        :t="t"
+        :lang="lang"
         @back="mobileView = 'chat'"
       />
     </div>
@@ -34,9 +39,10 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, onMounted, ref, watch, watchEffect } from 'vue'
 import { useConnectionStore } from './stores/connectionStore'
 import { useRoomStore } from './stores/roomStore'
+import { detectLang, messages } from './i18n'
 import '@dotrino/topbar'
 import { getIdentity } from './services/identity'
 import { getReputation } from './services/reputation'
@@ -48,6 +54,17 @@ import MemberList from './components/MemberList.vue'
 
 const connectionStore = useConnectionStore()
 const roomStore = useRoomStore()
+
+// --- Idioma (CONVENCIONES §9) ----------------------------------------------
+// El <dotrino-topbar> es el dueño del toggle y de la preferencia: la app solo
+// arranca con el mismo criterio y luego obedece su evento 'dotrino-lang'.
+const lang = ref(detectLang())
+const t = computed(() => messages[lang.value])
+watch(lang, (l) => { document.documentElement.lang = l }, { immediate: true })
+const onLang = (e) => {
+  const l = e?.detail?.lang
+  if (l === 'es' || l === 'en') lang.value = l
+}
 
 // Vista activa en mobile: 'rooms' | 'chat' | 'members'
 const mobileView = ref('rooms')
@@ -82,11 +99,6 @@ watchEffect(() => {
   tb.reputation = reputationInst.value ?? null
   tb.profileTheme = profileTheme
 })
-
-// Nota: el toggle de idioma del topbar traduce sus propias piezas (perfil,
-// soporte, volver) y persiste la preferencia en 'dotrino.lang'. La UI de la app
-// todavía no está traducida (deuda §9); cuando lo esté, debe escuchar el evento
-// 'dotrino-lang' del topbar como única fuente de verdad.
 
 onMounted(async () => {
   // Hidratar el nickname desde el vault ANTES de decidir si mostramos el

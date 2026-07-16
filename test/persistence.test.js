@@ -55,8 +55,9 @@ describe('persistencia del historial (store del ecosistema)', () => {
     expect(chats.map(m => m.text)).toEqual(['hola viejo', 'qué tal'])
     expect(chats[0]).toMatchObject({ id: 'h1', historic: true, isMe: false })
     expect(chats[1]).toMatchObject({ id: 'h2', historic: true, isMe: true })
-    // Y además el mensaje de sistema "You joined".
-    expect(room.messages.some(m => m.type === 'system' && /joined/i.test(m.text))).toBe(true)
+    // Y además el aviso de sistema "entraste a la sala" (clave + datos: el
+    // texto lo arma la vista según el idioma).
+    expect(room.messages.some(m => m.type === 'system' && m.key === 'youJoined')).toBe(true)
   })
 
   it('arranca sin historial si el store no devuelve nada', async () => {

@@ -1,20 +1,20 @@
 <template>
   <div class="room-list">
     <div class="room-header">
-      <h3>Rooms</h3>
-      <button @click="refreshRooms" class="small" title="Refresh room list">↻</button>
+      <h3>{{ t.rooms.title }}</h3>
+      <button @click="refreshRooms" class="small" :title="t.rooms.refresh" :aria-label="t.rooms.refresh">↻</button>
     </div>
 
     <div class="room-create">
       <input
         v-model="newRoomName"
         type="text"
-        placeholder="Create new room"
+        :placeholder="t.rooms.createPlaceholder"
         maxlength="32"
         @keyup.enter="createRoom"
         class="create-input"
       />
-      <button @click="createRoom" class="small">+</button>
+      <button @click="createRoom" class="small" :title="t.rooms.create" :aria-label="t.rooms.create">+</button>
     </div>
 
     <div class="room-items">
@@ -28,7 +28,7 @@
           <span class="member-count">({{ room.memberCount }})</span>
         </div>
         <button @click="joinRoomClick(room.name)" class="small join-btn">
-          Join
+          {{ t.rooms.join }}
         </button>
       </div>
     </div>
@@ -38,13 +38,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoomStore } from '../stores/roomStore'
+import { errorText } from '../i18n'
+
+const props = defineProps({
+  t: { type: Object, required: true }
+})
 
 const roomStore = useRoomStore()
 
 const newRoomName = ref('')
-const error = ref('')
+// Guardamos el error, no su texto: así el aviso también cambia de idioma.
+// `{ local }` = validación de este formulario; si no, es un error del store.
+const failure = ref(null)
+const error = computed(() => {
+  const f = failure.value
+  if (!f) return ''
+  return f.local ? props.t.rooms[f.local] : errorText(props.t, f)
+})
 
 let pollInterval = null
 
@@ -70,25 +82,25 @@ const refreshRooms = async () => {
 const createRoom = async () => {
   const name = newRoomName.value.trim()
   if (!name) {
-    error.value = 'Room name required'
+    failure.value = { local: 'nameRequired' }
     return
   }
 
   try {
     await roomStore.createRoom(name)
     newRoomName.value = ''
-    error.value = ''
+    failure.value = null
   } catch (e) {
-    error.value = e.message
+    failure.value = e
   }
 }
 
 const joinRoomClick = async (name) => {
   try {
     await roomStore.joinRoom(name)
-    error.value = ''
+    failure.value = null
   } catch (e) {
-    error.value = e.message
+    failure.value = e
   }
 }
 </script>

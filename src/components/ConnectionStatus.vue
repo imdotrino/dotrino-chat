@@ -9,7 +9,7 @@
     </div>
 
     <div v-if="connectionStore.token" class="token-display">
-      <span class="label">Token:</span>
+      <span class="label">{{ t.status.codeLabel }}</span>
       <span class="token">{{ connectionStore.token }}</span>
     </div>
 
@@ -18,7 +18,7 @@
       @click="reconnect"
       class="small"
     >
-      Reconnect
+      {{ t.status.reconnect }}
     </button>
   </div>
 </template>
@@ -27,12 +27,16 @@
 import { computed } from 'vue'
 import { useConnectionStore } from '../stores/connectionStore'
 
+const props = defineProps({
+  t: { type: Object, required: true }
+})
+
 const connectionStore = useConnectionStore()
 
 const statusText = computed(() => {
-  if (connectionStore.isConnected) return 'Connected'
-  if (connectionStore.connectionError) return 'Disconnected'
-  return 'Connecting...'
+  if (connectionStore.isConnected) return props.t.status.connected
+  if (connectionStore.connectionError) return props.t.status.disconnected
+  return props.t.status.connecting
 })
 
 const statusClass = computed(() => {

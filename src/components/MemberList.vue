@@ -1,8 +1,8 @@
 <template>
   <div v-if="roomStore.isInRoom" class="member-list">
     <div class="member-header">
-      <button class="small mobile-only back-btn" @click="$emit('back')" title="Back to chat">←</button>
-      <h3>Members ({{ roomStore.members.length }})</h3>
+      <button class="small mobile-only back-btn" @click="$emit('back')" :title="t.members.back" :aria-label="t.members.back">←</button>
+      <h3>{{ t.members.title(roomStore.members.length) }}</h3>
     </div>
 
     <div class="member-items">
@@ -17,7 +17,7 @@
           <span class="online-dot" :class="{ offline: isOffline(member) }"></span>
           <div class="member-name-block">
             <span class="member-name">{{ displayName(member) }}</span>
-            <span v-if="member.isMe" class="you-badge">(you)</span>
+            <span v-if="member.isMe" class="you-badge">{{ t.members.you }}</span>
             <template v-else>
               <span
                 v-if="ratingFor(member).value != null"
@@ -35,6 +35,8 @@
 
     <PeerRatingModal
       :member="selectedMember"
+      :t="t"
+      :lang="lang"
       @close="selectedMember = null"
     />
   </div>
@@ -45,6 +47,11 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoomStore } from '../stores/roomStore'
 import { computeDerivedRating } from '../utils/rating'
 import PeerRatingModal from './PeerRatingModal.vue'
+
+const props = defineProps({
+  t: { type: Object, required: true },
+  lang: { type: String, default: 'es' }
+})
 
 defineEmits(['back'])
 
@@ -66,10 +73,11 @@ const ratingFor = (member) => {
 }
 
 const tooltipFor = (member) => {
+  const tip = props.t.members.tip
   const r = ratingFor(member)
-  if (r.value == null) return 'Sin calificación — click para detalles'
-  if (r.source === 'mine') return `Tu calificación: ${r.value}/5 — click para detalles`
-  return `Reputación: ${r.value.toFixed(1)}/5 (${r.count} opiniones) — click para detalles`
+  if (r.value == null) return tip.none
+  if (r.source === 'mine') return tip.mine({ value: r.value })
+  return tip.derived({ value: r.value.toFixed(1), count: r.count })
 }
 
 onMounted(() => {

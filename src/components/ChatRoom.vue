@@ -2,12 +2,12 @@
   <div v-if="roomStore.isInRoom" class="chat-room">
     <!-- Header -->
     <div class="chat-header">
-      <button class="small mobile-only back-btn" @click="$emit('back')" title="Rooms">←</button>
+      <button class="small mobile-only back-btn" @click="$emit('back')" :title="t.chat.backToRooms" :aria-label="t.chat.backToRooms">←</button>
       <h2>#{{ roomStore.currentRoom }}</h2>
-      <button class="small mobile-only members-btn" @click="$emit('show-members')" :title="`Members (${roomStore.members.length})`">
+      <button class="small mobile-only members-btn" @click="$emit('show-members')" :title="t.chat.members(roomStore.members.length)">
         👥 {{ roomStore.members.length }}
       </button>
-      <button @click="leaveRoom" class="danger small">Leave</button>
+      <button @click="leaveRoom" class="danger small">{{ t.chat.leave }}</button>
     </div>
 
     <!-- Messages -->
@@ -18,7 +18,7 @@
         :class="['message', msg.type]"
       >
         <div v-if="msg.type === 'system'" class="system-message">
-          <em>{{ msg.text }}</em>
+          <em>{{ systemText(t, msg) }}</em>
         </div>
 
         <div v-else class="chat-message" :class="{ own: msg.isMe }">
@@ -35,25 +35,30 @@
     <div class="chat-input-area">
       <textarea
         v-model="inputText"
-        placeholder="Type a message... (Enter to send, Shift+Enter for newline)"
+        :placeholder="t.chat.placeholder"
         @keydown="handleKeydown"
         class="chat-input"
         rows="2"
       ></textarea>
       <button @click="sendMessage" class="primary" :disabled="!inputText.trim()">
-        Send
+        {{ t.chat.send }}
       </button>
     </div>
   </div>
 
   <div v-else class="no-room">
-    <p>👈 Select a room to start chatting</p>
+    <p>{{ t.chat.empty }}</p>
   </div>
 </template>
 
 <script setup>
 import { ref, onUpdated, nextTick } from 'vue'
 import { useRoomStore } from '../stores/roomStore'
+import { systemText } from '../i18n'
+
+defineProps({
+  t: { type: Object, required: true }
+})
 
 defineEmits(['back', 'show-members'])
 

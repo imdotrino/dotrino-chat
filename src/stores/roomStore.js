@@ -46,6 +46,22 @@ export const useRoomStore = defineStore('room', () => {
 
   const ROOM_CAPACITY = 20
 
+  // Avisos de la conversación: guardamos la CLAVE y sus datos, no el texto ya
+  // armado. El idioma lo resuelve la vista (src/i18n.js), así los avisos que ya
+  // están en pantalla cambian de idioma con la app (CONVENCIONES §9).
+  const sysMessage = (key, params) => ({
+    id: crypto.randomUUID(),
+    from: 'system',
+    type: 'system',
+    key,
+    params,
+    timestamp: Date.now()
+  })
+
+  // Errores con código: el texto de cara al usuario lo pone la vista (i18n);
+  // el `message` queda como pista para el log.
+  const roomError = (code, params) => Object.assign(new Error(code), { code, params })
+
   // Actions
   const joinRoom = async (roomName) => {
     try {
@@ -61,12 +77,12 @@ export const useRoomStore = defineStore('room', () => {
       try {
         const count = await connectionStore.wsProxyClient.channelCount(targetChannel)
         if (count >= ROOM_CAPACITY) {
-          throw new Error(`Sala llena (máximo ${ROOM_CAPACITY} personas). Prueba otra.`)
+          throw roomError('roomFull', { max: ROOM_CAPACITY })
         }
       } catch (e) {
         // Si el error es el de capacidad, lo propagamos. Otros errores (timeout,
         // método ausente) los toleramos: el cap del proxy de 100 actúa de fallback.
-        if (e?.message?.startsWith('Sala llena')) throw e
+        if (e?.code === 'roomFull') throw e
       }
 
       currentRoom.value = roomName
@@ -129,13 +145,7 @@ export const useRoomStore = defineStore('room', () => {
       }
 
       // Add system message
-      messages.value.push({
-        id: crypto.randomUUID(),
-        from: 'system',
-        type: 'system',
-        text: `You joined #${roomName}`,
-        timestamp: Date.now()
-      })
+      messages.value.push(sysMessage('youJoined', { room: roomName }))
 
       // Start intervals
       startHeartbeat()
@@ -185,13 +195,7 @@ export const useRoomStore = defineStore('room', () => {
       messages.value = []
       members.value = []
 
-      messages.value.push({
-        id: crypto.randomUUID(),
-        from: 'system',
-        type: 'system',
-        text: `You left #${roomName}`,
-        timestamp: Date.now()
-      })
+      messages.value.push(sysMessage('youLeft', { room: roomName }))
 
       // Refrescar lista pública (mi unpublish puede haber dejado el canal vacío)
       listPublicRooms().catch(() => {})
@@ -204,7 +208,7 @@ export const useRoomStore = defineStore('room', () => {
   const createRoom = async (roomName) => {
     const trimmed = roomName.trim()
     if (!trimmed || trimmed.length > 32 || !/^[a-z0-9-]+$/.test(trimmed)) {
-      throw new Error('Room name must be 1-32 alphanumeric chars + hyphens')
+      throw roomError('badRoomName')
     }
 
     if (!rooms.value.find(r => r.name === trimmed)) {
@@ -229,13 +233,7 @@ export const useRoomStore = defineStore('room', () => {
         .map(m => ({ token: m.token, encryptionPubkey: m.encryptionPubkey }))
 
       if (recipients.length === 0) {
-        messages.value.push({
-          id: crypto.randomUUID(),
-          from: 'system',
-          type: 'system',
-          text: '(No hay miembros con identidad verificada para descifrar)',
-          timestamp: Date.now()
-        })
+        messages.value.push(sysMessage('noVerifiedMembers'))
         return
       }
 
@@ -267,14 +265,9 @@ export const useRoomStore = defineStore('room', () => {
       persistMessage(currentRoom.value, echo)
 
     } catch (error) {
+      // El detalle técnico se queda en el log; en pantalla, un aviso claro.
       console.error('Send message error:', error)
-      messages.value.push({
-        id: crypto.randomUUID(),
-        from: 'system',
-        type: 'system',
-        text: `Error enviando mensaje: ${error.message}`,
-        timestamp: Date.now()
-      })
+      messages.value.push(sysMessage('sendFailed'))
     }
   }
 
@@ -601,13 +594,7 @@ export const useRoomStore = defineStore('room', () => {
     challengePeer(fromToken)
 
     // System message
-    messages.value.push({
-      id: crypto.randomUUID(),
-      from: 'system',
-      type: 'system',
-      text: `${sanitizedNickname} joined`,
-      timestamp: Date.now()
-    })
+    messages.value.push(sysMessage('joined', { nickname: sanitizedNickname }))
 
     // Reply with heartbeat
     const heartbeatMsg = formatMessage('HEARTBEAT_ACK', {
@@ -628,13 +615,7 @@ export const useRoomStore = defineStore('room', () => {
 
     members.value = members.value.filter(m => m.token !== peerToken)
 
-    messages.value.push({
-      id: crypto.randomUUID(),
-      from: 'system',
-      type: 'system',
-      text: `${member.nickname} disconnected`,
-      timestamp: Date.now()
-    })
+    messages.value.push(sysMessage('disconnected', { nickname: member.nickname }))
   }
 
   const handlePeerJoined = (peerToken, channel) => {
@@ -674,13 +655,7 @@ export const useRoomStore = defineStore('room', () => {
 
     members.value = members.value.filter(m => m.token !== peerToken)
 
-    messages.value.push({
-      id: crypto.randomUUID(),
-      from: 'system',
-      type: 'system',
-      text: `${member.nickname} left`,
-      timestamp: Date.now()
-    })
+    messages.value.push(sysMessage('left', { nickname: member.nickname }))
   }
 
   const handleLeaveAnnounce = (fromToken, payload) => {
@@ -692,13 +667,7 @@ export const useRoomStore = defineStore('room', () => {
     members.value = members.value.filter(m => m.token !== fromToken)
 
     // System message
-    messages.value.push({
-      id: crypto.randomUUID(),
-      from: 'system',
-      type: 'system',
-      text: `${sanitizedNickname} left`,
-      timestamp: Date.now()
-    })
+    messages.value.push(sysMessage('left', { nickname: sanitizedNickname }))
   }
 
   const handleHeartbeat = (fromToken, payload) => {

@@ -1,21 +1,21 @@
 <template>
   <div v-if="member" class="modal-overlay" @click.self="$emit('close')">
     <div class="modal">
-      <button class="close-btn" @click="$emit('close')" aria-label="Close">×</button>
+      <button class="close-btn" @click="$emit('close')" :aria-label="t.peer.close">×</button>
 
       <h3 class="modal-title">{{ displayName }}</h3>
-      <div class="modal-token">Token: <code>{{ member.token }}</code></div>
+      <div class="modal-token">{{ t.peer.codeLabel }} <code>{{ member.token }}</code></div>
 
       <div v-if="!member.pubkey" class="muted">
-        Esperando verificación de identidad…
+        {{ t.peer.unverified }}
       </div>
 
       <template v-else>
         <!-- Nickname personalizado (propio del chat: sobrescribe el público) -->
         <div class="row">
-          <label>Nickname personalizado</label>
+          <label>{{ t.peer.nickLabel }}</label>
           <input v-model="customNickname" type="text" maxlength="40"
-                 placeholder="Sobrescribe el nickname público" />
+                 :placeholder="t.peer.nickPlaceholder" />
         </div>
 
         <!-- Tarjeta de perfil + reputación compartida del ecosistema -->
@@ -25,11 +25,11 @@
           :style="profileTheme"
           :pubkey="member.pubkey"
           :name="displayName"
+          :lang.attr="lang"
         ></dotrino-profile>
 
         <div v-if="suspicion" class="suspicion">
-          ⚠ Te ha consultado por {{ suspicion.queriesMade }} personas; conocías
-          {{ suspicion.queriesKnown }}.
+          {{ t.peer.suspicion({ made: suspicion.queriesMade, known: suspicion.queriesKnown }) }}
         </div>
       </template>
     </div>
@@ -42,7 +42,9 @@ import { useRoomStore } from '../stores/roomStore'
 import '@dotrino/profile'
 
 const props = defineProps({
-  member: { type: Object, default: null }
+  member: { type: Object, default: null },
+  t: { type: Object, required: true },
+  lang: { type: String, default: 'es' }
 })
 const emit = defineEmits(['close'])
 
