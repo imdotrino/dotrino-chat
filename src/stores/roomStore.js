@@ -1,55 +1,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { Identity } from '@dotrino/identity'
-import { createVaultReputation } from '@dotrino/reputation'
-import { createVaultProfileProvider } from '@dotrino/profile'
 import { useConnectionStore } from './connectionStore'
 import { sanitizeMessage, sanitizeNickname } from '../utils/sanitize'
 import { loadHistory, persistMessage } from '../services/store'
-
-let _identity = null
-let _identityReadyHooks = []
-async function getIdentity () {
-  if (_identity) return _identity
-  try {
-    _identity = await Identity.connect()
-    for (const fn of _identityReadyHooks) {
-      try { fn(_identity) } catch (_) {}
-    }
-    _identityReadyHooks = []
-  } catch (e) {
-    console.warn('Identity vault unreachable, identity features disabled:', e)
-    _identity = null
-  }
-  return _identity
-}
-
-// Registro de reputación compartido (reputation.dotrino.com), sobre el mismo
-// vault. Singleton. Habilita el panel "Reputación de la red" del perfil.
-let _reputation = null
-async function getReputation () {
-  if (_reputation) return _reputation
-  const id = await getIdentity()
-  if (!id) return null
-  try { _reputation = createVaultReputation(id) } catch (_) { _reputation = null }
-  return _reputation
-}
-
-// Provider para el Web Component compartido <dotrino-profile> (mismo del
-// ecosistema): datos del vault + reputación de la nube. Para "mi perfil" propio.
-let _profileProvider = null
-async function getProfileProvider () {
-  if (_profileProvider) return _profileProvider
-  const [id, rep] = await Promise.all([getIdentity(), getReputation()])
-  if (!id) return null
-  try { _profileProvider = createVaultProfileProvider({ identity: id, reputation: rep }) } catch (_) { _profileProvider = null }
-  return _profileProvider
-}
-// Mi pubkey del vault (para abrir mi propio perfil).
-async function getMyPubkey () {
-  const id = await getIdentity()
-  return id?.me?.publickey || null
-}
+// Identidad y reputación viven en services/ (singletons compartidos con el
+// <dotrino-topbar>, que es el dueño del modal "Mi perfil").
+import { getIdentity } from '../services/identity'
+import { getReputation } from '../services/reputation'
 
 export const useRoomStore = defineStore('room', () => {
   const connectionStore = useConnectionStore()
@@ -941,8 +898,6 @@ export const useRoomStore = defineStore('room', () => {
     ratePeer,
     setPeerNickname,
     getReputation,
-    getProfileProvider,
-    getMyPubkey,
     refreshPeerInfo,
     refreshTrustMap,
     trustMap

@@ -3,7 +3,6 @@ import { createPinia } from 'pinia'
 import './style/theme.css'
 import './style.css'
 import App from './App.vue'
-import '@dotrino/support'
 import { createBackNav } from '@dotrino/nav'
 
 // Navegación "volver" unificada del ecosistema (botón físico de Android / gesto
