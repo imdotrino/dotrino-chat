@@ -8,9 +8,12 @@
       {{ statusText }}
     </div>
 
-    <div v-if="connectionStore.token" class="token-display">
+    <!-- Se muestra la CITA, no la instancia: la instancia es el identificador
+         interno de la conexión (24 caracteres, cualificado por proxio) y no es
+         algo que una persona pueda leer ni dictar. -->
+    <div v-if="connectionStore.pairingCode" class="token-display">
       <span class="label">{{ t.status.codeLabel }}</span>
-      <span class="token">{{ connectionStore.token }}</span>
+      <span class="token">{{ connectionStore.pairingCode }}</span>
     </div>
 
     <button

@@ -10,6 +10,11 @@ export const useConnectionStore = defineStore('connection', () => {
 
   // State
   const token = ref(null)
+  // La CITA: el código corto que sí se le puede enseñar a una persona (6
+  // caracteres, caduca en minutos, un solo uso). `token` es la instancia con la
+  // que se rutea internamente y no se muestra.
+  const pairingCode = ref(null)
+  let pairingTimer = null
   const isConnected = ref(false)
   const connectionError = ref(null)
   const wsUrl = ref(import.meta.env.VITE_WS_URL || 'wss://proxy.dotrino.com')
@@ -117,9 +122,34 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   }
 
+  /**
+   * Pide una cita al proxio y la renueva sola antes de que caduque.
+   * Si el proxio es viejo y no las conoce, se queda en null y la UI no muestra
+   * código — mejor eso que enseñar una instancia de 24 caracteres como si fuera
+   * algo que una persona puede dictar.
+   */
+  const refreshPairingCode = async () => {
+    if (pairingTimer) { clearTimeout(pairingTimer); pairingTimer = null }
+    try {
+      const res = await wsProxyClient.requestPairingCode()
+      pairingCode.value = res?.code || null
+      const left = (res?.expiresAt || 0) - Date.now()
+      if (left > 10000) {
+        pairingTimer = setTimeout(refreshPairingCode, left - 5000)
+      }
+    } catch (_) {
+      pairingCode.value = null
+    }
+  }
+
   const setupProxyEventHandlers = () => {
     wsProxyClient.on('token', (assignedToken) => {
       token.value = assignedToken
+      // El identificador de conexión dejó de ser un código de 4 caracteres: hoy
+      // es una instancia larga, cualificada por proxio, que no se le enseña a
+      // nadie. Para mostrar (y compartir) hay que pedir una CITA, que es corta,
+      // caduca en minutos y se quema al usarse.
+      refreshPairingCode()
     })
 
     wsProxyClient.on('connect', () => {
@@ -130,6 +160,7 @@ export const useConnectionStore = defineStore('connection', () => {
     wsProxyClient.on('disconnect', () => {
       isConnected.value = false
       token.value = null
+      pairingCode.value = null
     })
 
     wsProxyClient.on('error', (error) => {
@@ -180,6 +211,8 @@ export const useConnectionStore = defineStore('connection', () => {
   // Export public API
   return {
     token,
+    pairingCode,
+    refreshPairingCode,
     isConnected,
     connectionError,
     wsUrl,
