@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { samePubkey } from '@dotrino/proxy-client'
 import { useConnectionStore } from './connectionStore'
 import { sanitizeMessage, sanitizeNickname } from '../utils/sanitize'
 import { loadHistory, persistMessage } from '../services/store'
@@ -26,6 +27,15 @@ export const useRoomStore = defineStore('room', () => {
 
   let refreshInterval = null
   let heartbeatInterval = null
+
+  // QUÉ ESPERA A QUÉ. Un token es una dirección del proxio y no dice de quién es, así
+  // que hasta que su dueño conteste el saludo no hay a quién sellarle. Lo que iba a
+  // salir para ese token se guarda aquí y sale entero en cuanto se sabe — en vez de
+  // perderse o, peor, mandarse en claro «porque todavía no se sabe».
+  const pending = new Map() // token -> [raw]
+  const PENDING_MAX = 8
+  // Avisos ya dados (token|code), para no repetir el mismo en cada latido.
+  const warned = new Set()
 
   // Message protocol helpers
   const formatMessage = (type, payload) => {
@@ -61,6 +71,80 @@ export const useRoomStore = defineStore('room', () => {
   // Errores con código: el texto de cara al usuario lo pone la vista (i18n);
   // el `message` queda como pista para el log.
   const roomError = (code, params) => Object.assign(new Error(code), { code, params })
+
+  /**
+   * Manda algo dirigido a varios tokens, SELLADO, y se hace cargo de lo que no salió.
+   *
+   *   · a quien todavía no ha dicho quién es (`no-peer-identity`) se le guarda el
+   *     mensaje: el saludo está en camino y sale entero cuando llegue;
+   *   · a quien no se le puede sellar por otro motivo, NO se le manda nada y se dice en
+   *     la sala, una vez por motivo. Callarlo dejaría a esa persona en la lista sin
+   *     recibir nada, que es exactamente el fallo mudo que el ecosistema paga caro.
+   */
+  const sendSealedToPeers = async (tokens, raw) => {
+    const list = (Array.isArray(tokens) ? tokens : [tokens]).filter(Boolean)
+    if (!list.length) return { sent: [], failed: [] }
+    const res = await connectionStore.sendMessage(list, raw)
+    for (const { token, code } of res.failed) {
+      if (code === 'no-peer-identity') {
+        queueForToken(token, raw)
+        continue
+      }
+      const clave = `${token}|${code}`
+      if (warned.has(clave)) continue
+      warned.add(clave)
+      const member = members.value.find(m => m.token === token)
+      messages.value.push(sysMessage('peerUnreachable', {
+        nickname: member?.nickname || '', code
+      }))
+    }
+    return res
+  }
+
+  /** Quien se va deja de estar esperando: su token no vuelve. */
+  const forgetPeer = (token) => {
+    pending.delete(token)
+    for (const clave of [...warned]) if (clave.startsWith(token + '|')) warned.delete(clave)
+  }
+
+  const queueForToken = (token, raw) => {
+    const cola = pending.get(token) || []
+    // Tope: si alguien nunca contesta el saludo, su cola no puede crecer sin fin.
+    if (cola.length >= PENDING_MAX) cola.shift()
+    cola.push(raw)
+    pending.set(token, cola)
+  }
+
+  /**
+   * Ya se sabe de quién es ese token: se apunta y sale lo que estaba esperando.
+   * La pubkey del saludo NO está verificada —no hace falta: mentir solo consigue que te
+   * sellen a una llave que no puedes abrir—, y el reto de identidad que viene después
+   * la confirma.
+   */
+  const handlePeerIdentity = (peerToken, publickey) => {
+    if (!publickey || peerToken === connectionStore.token) return
+    const member = members.value.find(m => m.token === peerToken)
+    if (member) {
+      if (!member.pubkey) member.pubkey = publickey
+      member.lastSeen = Date.now()
+    } else if (currentRoom.value) {
+      members.value.push({
+        token: peerToken,
+        nickname: peerToken,
+        pubkey: publickey,
+        lastSeen: Date.now(),
+        isMe: false
+      })
+    }
+    // Retar a quien acaba de decir quién es: el saludo da la dirección, el reto da la
+    // prueba (y con ella la llave con la que se cifra el texto del chat).
+    challengePeer(peerToken)
+    const cola = pending.get(peerToken)
+    if (cola && cola.length) {
+      pending.delete(peerToken)
+      for (const raw of cola) sendSealedToPeers([peerToken], raw)
+    }
+  }
 
   // Actions
   const joinRoom = async (roomName) => {
@@ -115,11 +199,11 @@ export const useRoomStore = defineStore('room', () => {
         }
       ]
 
-      // Publish to room channel
-      await connectionStore.wsProxyClient.publish(
-        channelName.value,
-        { nickname: connectionStore.nickname, roomName }
-      )
+      // El canal es PÚBLICO por diseño —es la lista de quién está en la sala— y por eso
+      // §4.1 lo exime del sellado. Justo por eso va VACÍO: el apodo es del usuario y
+      // aquí se quedaba escrito en el proxio a la vista. Lo que hace falta saber de
+      // cada uno viaja sellado, y de quién es cada token lo dice el saludo.
+      await connectionStore.wsProxyClient.publish(channelName.value)
 
       // Get existing members
       await refreshMembers()
@@ -135,13 +219,11 @@ export const useRoomStore = defineStore('room', () => {
           roomName,
           timestamp: Date.now()
         })
-        // Identidad: retar a los ya presentes
-        for (const t of others) challengePeer(t)
-        try {
-          await connectionStore.sendMessage(others, joinMsg)
-        } catch (e) {
-          console.error('Failed to send JOIN_ANNOUNCE:', e)
-        }
+        // PRIMERO EL SALUDO, que es lo que dice de quién es cada token; el anuncio va
+        // sellado detrás. A quien todavía no haya contestado, se le guarda y sale solo
+        // cuando conteste: el apodo no se manda en claro «mientras tanto».
+        connectionStore.greet(others)
+        await sendSealedToPeers(others, joinMsg)
       }
 
       // Add system message
@@ -176,11 +258,7 @@ export const useRoomStore = defineStore('room', () => {
           roomName: currentRoom.value,
           timestamp: Date.now()
         })
-        try {
-          await connectionStore.sendMessage(others, leaveMsg)
-        } catch (e) {
-          console.error('Failed to send LEAVE_ANNOUNCE:', e)
-        }
+        await sendSealedToPeers(others, leaveMsg)
       }
 
       // Unpublish
@@ -189,6 +267,8 @@ export const useRoomStore = defineStore('room', () => {
       // Clean up
       stopHeartbeat()
       stopMemberRefresh()
+      pending.clear()
+      warned.clear()
 
       const roomName = currentRoom.value
       currentRoom.value = null
@@ -242,6 +322,17 @@ export const useRoomStore = defineStore('room', () => {
 
       const envelope = await id.encrypt(recipients, trimmed)
 
+      // DOS CAPAS, y cada una hace algo distinto (no es lo que §4.1 llama «dos capas
+      // abriendo el mismo sobre»: ésa es una, la del pilar, que aquí no se toca):
+      //
+      //   · el SOBRE DEL TRANSPORTE, que pone `sendSealedToPeers` más abajo, es lo que
+      //     hace que el proxio no vea NADA — tampoco el apodo, que es lo que hasta ahora
+      //     viajaba al lado del texto cifrado. Un sobre cerrado con el remitente escrito
+      //     por fuera no es privacidad.
+      //   · este sobre de la bóveda, cifrado con MI llave de cifrado hacia la suya,
+      //     prueba además QUIÉN lo escribió: el sellado del transporte es efímero, así
+      //     que cualquiera puede sellarte algo diciendo que es de otro; esto no se puede
+      //     falsificar sin la privada del remitente.
       const msg = formatMessage('CHAT_ENC', {
         envelope,
         nickname: connectionStore.nickname,
@@ -249,7 +340,7 @@ export const useRoomStore = defineStore('room', () => {
         timestamp: Date.now()
       })
 
-      await connectionStore.sendMessage(recipients.map(r => r.token), msg)
+      await sendSealedToPeers(recipients.map(r => r.token), msg)
 
       // Echo local (el remitente nunca cifra para sí mismo)
       const echo = {
@@ -280,10 +371,6 @@ export const useRoomStore = defineStore('room', () => {
     switch (type) {
       case 'CHAT_ENC':
         handleEncryptedChatMessage(fromToken, payload)
-        break
-      case 'CHAT_MSG':
-        // Compatibilidad legacy con clientes pre-E2E (descartar en producción).
-        handleChatMessage(fromToken, payload)
         break
       case 'JOIN_ANNOUNCE':
         handleJoinAnnounce(fromToken, payload)
@@ -321,7 +408,7 @@ export const useRoomStore = defineStore('room', () => {
     try {
       const { nonce } = await id.makeChallenge()
       const msg = formatMessage('IDENTIFY_CHALLENGE', { nonce })
-      await connectionStore.sendMessage([peerToken], msg)
+      await sendSealedToPeers([peerToken], msg)
     } catch (e) {
       console.warn('challengePeer failed:', e)
     }
@@ -333,7 +420,7 @@ export const useRoomStore = defineStore('room', () => {
     try {
       const response = await id.signChallenge(payload.nonce)
       const msg = formatMessage('IDENTIFY_RESPONSE', response)
-      await connectionStore.sendMessage([fromToken], msg)
+      await sendSealedToPeers([fromToken], msg)
     } catch (e) {
       console.warn('signChallenge failed:', e)
     }
@@ -346,6 +433,14 @@ export const useRoomStore = defineStore('room', () => {
       const result = await id.verifyResponse(payload)
       if (!result.ok) return
       const member = members.value.find(m => m.token === fromToken)
+      // EL SALUDO NO ESTÁ FIRMADO; ESTO SÍ. Si dijo ser uno y prueba ser otro, no es un
+      // desajuste que arreglar: es alguien intentando que le sellemos lo de otro. Se
+      // descarta y se dice, en vez de quedarnos con el último que habló.
+      if (member?.pubkey && !samePubkey(member.pubkey, result.publickey)) {
+        console.warn(`[chat] ${fromToken} greeted as one identity and proved another`)
+        members.value = members.value.filter(m => m.token !== fromToken)
+        return
+      }
       if (member) {
         member.pubkey = result.publickey
         member.encryptionPubkey = result.encryptionPubkey || payload.encryptionPubkey || null
@@ -372,7 +467,7 @@ export const useRoomStore = defineStore('room', () => {
     if (targets.length === 0) return
     const queryId = crypto.randomUUID()
     const msg = formatMessage('RATING_QUERY', { queryId, subject: subjectPubkey })
-    connectionStore.sendMessage(targets, msg).catch(() => {})
+    sendSealedToPeers(targets, msg)
   }
 
   const handleRatingQuery = async (fromToken, payload) => {
@@ -390,7 +485,7 @@ export const useRoomStore = defineStore('room', () => {
         mine,
         endorsements
       })
-      await connectionStore.sendMessage([fromToken], reply)
+      await sendSealedToPeers([fromToken], reply)
     } catch (e) {
       console.warn('handleRatingQuery failed:', e)
     }
@@ -537,40 +632,6 @@ export const useRoomStore = defineStore('room', () => {
     persistMessage(currentRoom.value, incoming)
   }
 
-  const handleChatMessage = (fromToken, payload) => {
-    if (payload.roomName !== currentRoom.value) return
-
-    const sanitizedNickname = sanitizeNickname(payload.nickname)
-    const sanitizedText = sanitizeMessage(payload.text)
-
-    // Update member nickname if known
-    const member = members.value.find(m => m.token === fromToken)
-    if (member) {
-      member.nickname = sanitizedNickname
-      member.lastSeen = Date.now()
-    } else {
-      members.value.push({
-        token: fromToken,
-        nickname: sanitizedNickname,
-        lastSeen: Date.now(),
-        isMe: false
-      })
-    }
-
-    // Add message
-    const legacyMsg = {
-      id: crypto.randomUUID(),
-      from: fromToken,
-      nickname: sanitizedNickname,
-      type: 'chat',
-      text: sanitizedText,
-      timestamp: payload.timestamp || Date.now(),
-      isMe: false
-    }
-    messages.value.push(legacyMsg)
-    persistMessage(currentRoom.value, legacyMsg)
-  }
-
   const handleJoinAnnounce = (fromToken, payload) => {
     if (payload.roomName !== currentRoom.value) return
 
@@ -602,7 +663,7 @@ export const useRoomStore = defineStore('room', () => {
       roomName: currentRoom.value,
       timestamp: Date.now()
     })
-    connectionStore.sendMessage([fromToken], heartbeatMsg).catch(() => {})
+    sendSealedToPeers([fromToken], heartbeatMsg)
   }
 
   const handlePeerDisconnected = (peerToken, channel) => {
@@ -614,6 +675,7 @@ export const useRoomStore = defineStore('room', () => {
     if (!member) return
 
     members.value = members.value.filter(m => m.token !== peerToken)
+    forgetPeer(peerToken)
 
     messages.value.push(sysMessage('disconnected', { nickname: member.nickname }))
   }
@@ -636,14 +698,18 @@ export const useRoomStore = defineStore('room', () => {
       })
     }
 
-    // Saludar al recién llegado con HEARTBEAT_ACK para que aprenda nuestro nickname
-    // sin esperar al primer heartbeat (30s) o JOIN_ANNOUNCE.
+    // El saludo del transporte primero: hasta saber de quién es ese token no hay a
+    // quién sellarle, y el apodo no sale en claro por ir antes.
+    connectionStore.greet(peerToken)
+
+    // Y el HEARTBEAT_ACK, para que aprenda nuestro apodo sin esperar al primer latido
+    // (30 s) ni al JOIN_ANNOUNCE. Si todavía no ha contestado el saludo, se guarda.
     const ackMsg = formatMessage('HEARTBEAT_ACK', {
       nickname: connectionStore.nickname,
       roomName: currentRoom.value,
       timestamp: Date.now()
     })
-    connectionStore.sendMessage([peerToken], ackMsg).catch(() => {})
+    sendSealedToPeers([peerToken], ackMsg)
   }
 
   const handlePeerLeft = (peerToken, channel) => {
@@ -654,6 +720,7 @@ export const useRoomStore = defineStore('room', () => {
     if (!member) return
 
     members.value = members.value.filter(m => m.token !== peerToken)
+    forgetPeer(peerToken)
 
     messages.value.push(sysMessage('left', { nickname: member.nickname }))
   }
@@ -732,6 +799,9 @@ export const useRoomStore = defineStore('room', () => {
         } else {
           member.lastSeen = Date.now()
         }
+        // A quien no ha dicho todavía de quién es su token, se le saluda: sin eso no se
+        // le puede sellar nada y se quedaría en la lista sin recibir ni mandar.
+        if (!connectionStore.wsProxyClient.pubkeyOfToken(token)) connectionStore.greet(token)
       }
 
       // Prune stale members (not in channel AND not seen for 3+ min)
@@ -762,7 +832,7 @@ export const useRoomStore = defineStore('room', () => {
         timestamp: Date.now()
       })
 
-      await connectionStore.sendMessage(others, msg)
+      await sendSealedToPeers(others, msg)
     } catch (error) {
       // Silently ignore heartbeat failures
     }
@@ -859,6 +929,7 @@ export const useRoomStore = defineStore('room', () => {
     createRoom,
     sendChatMessage,
     handleIncomingMessage,
+    handlePeerIdentity,
     handlePeerDisconnected,
     handlePeerJoined,
     handlePeerLeft,

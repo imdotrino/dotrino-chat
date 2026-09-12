@@ -12,11 +12,12 @@
         @keyup.enter="submit"
         :disabled="saving"
         class="nickname-input"
+        data-testid="nickname-input"
       />
 
       <p v-if="error" class="error">{{ error }}</p>
 
-      <button @click="submit" class="primary" :disabled="saving">
+      <button @click="submit" class="primary" :disabled="saving" data-testid="nickname-submit">
         {{ saving ? t.nick.saving : t.nick.submit }}
       </button>
     </div>

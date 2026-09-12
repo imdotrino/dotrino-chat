@@ -1,8 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { getWebSocketProxyClient } from '@dotrino/proxy-client'
+import { getWebSocketProxyClient, identitySealing } from '@dotrino/proxy-client'
 import { Identity } from '@dotrino/identity'
 import { sanitizeNickname } from '../utils/sanitize'
+import { getIdentity } from '../services/identity'
 
 export const useConnectionStore = defineStore('connection', () => {
   // Get singleton WebSocket client
@@ -30,10 +31,42 @@ export const useConnectionStore = defineStore('connection', () => {
   let handlersSetup = false
 
   // Actions
+  /**
+   * Conecta al transporte del ecosistema con el SELLADO PUESTO (CONVENCIONES §4.1).
+   *
+   * El proxio enruta pero no cifra. Hasta ahora todo lo dirigido —el apodo, quién entra
+   * y sale, los latidos, y hasta las notas de calificación con el pubkey del calificado—
+   * viajaba legible para quien opera el servidor. Ahora:
+   *
+   *   · `requireSealed: true` corta en las DOS direcciones: ni manda ni acepta nada
+   *     dirigido en claro. Sellar solo de salida no sirve de nada — quien acepta texto
+   *     plano se salta el sellado entero, y quien nunca leyó nada podría contestar sin
+   *     sellar y colar un payload falso.
+   *   · `myEncPub` es mi llave de cifrado; `identify` la anuncia sola, firmada, para que
+   *     cualquiera que sepa mi pubkey pueda sellarme sin habernos emparejado nunca.
+   *   · `sealing` es el puente de la bóveda: la llave privada NO está en la app, vive
+   *     dentro del iframe de id.dotrino.com. El puente es del pilar, no de aquí.
+   *
+   * SIN BÓVEDA NO SE CONECTA. No hay con qué sellar ni con qué abrir, y hablar en claro
+   * «mientras tanto» es justo el agujero que esto cierra.
+   */
   const connect = async () => {
     try {
       connectionError.value = null
-      wsProxyClient.updateConfig({ url: wsUrl.value })
+
+      const id = await getIdentity()
+      if (!id) {
+        isConnected.value = false
+        connectionError.value = 'no-identity'
+        return
+      }
+
+      wsProxyClient.updateConfig({
+        url: wsUrl.value,
+        requireSealed: true,
+        myEncPub: await id.getEncryptionPubkey(),
+        sealing: identitySealing(id, { app: 'dotrino-chat' }),
+      })
 
       // Registrar handlers ANTES de connect para no perder el primer
       // evento 'token' que el lib emite al recibir el frame `connected`.
@@ -47,6 +80,14 @@ export const useConnectionStore = defineStore('connection', () => {
       // Defensa extra por si alguna implementación futura emite token antes
       // del registro (no debería pasar con el orden de arriba).
       if (assignedToken && !token.value) token.value = assignedToken
+
+      // La identidad de red es la de la bóveda (CLAUDE.md): así la del cable coincide
+      // con la que firma, se habilita la cola offline y —lo que hace falta aquí— el
+      // anuncio de la llave de cifrado sale firmado por quien dice ser.
+      await wsProxyClient.identifyAs({
+        publickey: id.me.publickey,
+        sign: (data) => id.signData(data),
+      })
 
       isConnected.value = true
     } catch (error) {
@@ -113,12 +154,50 @@ export const useConnectionStore = defineStore('connection', () => {
     }
   }
 
+  /**
+   * Manda un mensaje dirigido SELLADO, uno por destinatario.
+   *
+   * Una envoltura por cabeza y no una para todos: cada identidad tiene su llave de
+   * cifrado, así que un solo sobre solo lo abriría uno.
+   *
+   * NO LANZA POR UN DESTINATARIO SUELTO, y no se lo traga: devuelve a quién no se le
+   * pudo mandar y por qué (`code`), para que la sala lo diga en pantalla. Lo que no
+   * hace nunca es mandarlo en claro: si no se puede sellar, no sale.
+   *
+   * @returns {Promise<{ sent: string[], failed: Array<{token:string, code:string}> }>}
+   */
   const sendMessage = async (toTokens, rawMessage) => {
+    const tokens = Array.isArray(toTokens) ? toTokens : [toTokens]
+    const sent = []
+    const failed = []
+    await Promise.all(tokens.map(async (t) => {
+      const peerPubkey = wsProxyClient.pubkeyOfToken(t)
+      if (!peerPubkey) {
+        failed.push({ token: t, code: 'no-peer-identity' })
+        return
+      }
+      try {
+        await wsProxyClient.sendSealedTo(t, rawMessage, { peerPubkey })
+        sent.push(t)
+      } catch (error) {
+        // Por `code`, nunca por la frase: `no-encpub` (no ha publicado con qué sellarle),
+        // `encpub-unverified` (llegó una llave que esa identidad no firmó) y
+        // `no-encpub-support` (el proxio es viejo) se arreglan de formas distintas.
+        failed.push({ token: t, code: error?.code || 'unknown' })
+        console.warn(`[chat] cannot seal to ${t}: ${error?.code || error?.message}`)
+      }
+    }))
+    return { sent, failed }
+  }
+
+  /** Saludar a un token para saber de quién es: sin eso no hay a quién sellarle. */
+  const greet = (tokens) => {
+    const list = (Array.isArray(tokens) ? tokens : [tokens]).filter((t) => t && t !== token.value)
+    if (!list.length) return
     try {
-      await wsProxyClient.send(toTokens, rawMessage)
+      wsProxyClient.helloTo(list)
     } catch (error) {
-      console.error('Send error:', error)
-      throw error
+      console.warn('[chat] greeting failed:', error?.code || error?.message)
     }
   }
 
@@ -168,13 +247,29 @@ export const useConnectionStore = defineStore('connection', () => {
       console.error('WebSocket error:', error)
     })
 
-    wsProxyClient.on('message', (fromToken, payload) => {
+    wsProxyClient.on('message', (fromToken, payload, meta) => {
+      // EL PILAR ES EL ÚNICO QUE ABRE EL SOBRE (§4.1): si abrieran los dos, el primero
+      // que llega sin la llave lo descarta y el otro nunca ve nada. Aquí solo se
+      // comprueba que VENÍA sellado.
+      if (!meta?.sealed) {
+        console.warn('[chat] dropped a directed message that was not sealed')
+        return
+      }
       // payload may be a parsed object or string. roomStore expects the raw string.
       const raw = typeof payload === 'string' ? payload : JSON.stringify(payload)
       // Lazy import to avoid circular dependency
       import('./roomStore.js').then(mod => {
         const roomStore = mod.useRoomStore()
         roomStore.handleIncomingMessage(fromToken, raw)
+      }).catch(() => {})
+    })
+
+    // «Este token es de esta identidad». Lo dice el saludo del transporte, no un mensaje
+    // de la app: el token es una dirección del proxio y no dice de quién es.
+    wsProxyClient.on('peer_identity', (peerToken, publickey) => {
+      import('./roomStore.js').then(mod => {
+        const roomStore = mod.useRoomStore()
+        roomStore.handlePeerIdentity(peerToken, publickey)
       }).catch(() => {})
     })
 
@@ -224,6 +319,7 @@ export const useConnectionStore = defineStore('connection', () => {
     setNickname,
     hydrateNicknameFromVault,
     sendMessage,
+    greet,
     wsProxyClient
   }
 })

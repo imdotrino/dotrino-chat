@@ -22,6 +22,9 @@ export const messages = {
       connecting: 'Conectando…',
       reconnect: 'Reconectar',
       codeLabel: 'Tu código:',
+      // Sin perfil no se conecta: lo que se manda va protegido con tu llave, y sin ella
+      // no hay con qué protegerlo ni con qué abrir lo que te manden.
+      noIdentity: 'Sin tu perfil no hay conversación',
     },
     rooms: {
       title: 'Salas',
@@ -49,6 +52,17 @@ export const messages = {
       disconnected: ({ nickname }) => `${nickname} se desconectó`,
       noVerifiedMembers: () => 'Nadie más en la sala puede leer tu mensaje todavía. Espera unos segundos.',
       sendFailed: () => 'No se pudo enviar tu mensaje. Inténtalo de nuevo.',
+      // Cuando a alguien de la sala no se le puede mandar nada porque no hay con qué
+      // protegerlo. Se dice: si no, esa persona figura en la lista y no recibe nada.
+      peerUnreachable: ({ nickname, code }) => {
+        const quien = nickname ? `${nickname} no recibe` : 'Alguien de la sala no recibe'
+        const motivo = {
+          'no-encpub': 'su app todavía no publica con qué protegerlo.',
+          'encpub-unverified': 'lo que llegó de esa persona no cuadra con su perfil.',
+          'no-encpub-support': 'el servidor por el que pasáis es antiguo.',
+        }[code] || 'no se pudo proteger el envío.'
+        return `${quien} tus mensajes: ${motivo}`
+      },
     },
     errors: {
       roomFull: ({ max }) => `La sala está llena (máximo ${max} personas). Prueba con otra.`,
@@ -95,6 +109,7 @@ export const messages = {
       connecting: 'Connecting…',
       reconnect: 'Reconnect',
       codeLabel: 'Your code:',
+      noIdentity: 'Without your profile there is no conversation',
     },
     rooms: {
       title: 'Rooms',
@@ -120,6 +135,15 @@ export const messages = {
       disconnected: ({ nickname }) => `${nickname} dropped off`,
       noVerifiedMembers: () => 'Nobody else in the room can read your message yet. Give it a few seconds.',
       sendFailed: () => 'Your message did not go through. Try again.',
+      peerUnreachable: ({ nickname, code }) => {
+        const quien = nickname ? `${nickname} is not getting` : 'Someone in the room is not getting'
+        const motivo = {
+          'no-encpub': 'their app does not publish what it takes to protect it yet.',
+          'encpub-unverified': 'what came from them does not match their profile.',
+          'no-encpub-support': 'the server you go through is an old one.',
+        }[code] || 'the message could not be protected.'
+        return `${quien} your messages: ${motivo}`
+      },
     },
     errors: {
       roomFull: ({ max }) => `This room is full (${max} people max). Try another one.`,

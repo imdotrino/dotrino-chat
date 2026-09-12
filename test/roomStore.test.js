@@ -20,7 +20,12 @@ function setupStores({ token = 'ME01', nickname = 'me' } = {}) {
   connection.token = token
   connection.nickname = nickname
   connection.isConnected = true
-  connection.sendMessage = vi.fn().mockResolvedValue()
+  // `sendMessage` sella uno por destinatario y devuelve a quién no se le pudo mandar:
+  // nunca lanza por un peer suelto, y NUNCA cae a mandar en claro.
+  connection.sendMessage = vi.fn(async (to) => ({
+    sent: Array.isArray(to) ? [...to] : [to], failed: []
+  }))
+  connection.greet = vi.fn()
   connection.wsProxyClient = {
     isConnected: true,
     publish: vi.fn().mockResolvedValue(),
@@ -28,7 +33,10 @@ function setupStores({ token = 'ME01', nickname = 'me' } = {}) {
     listChannel: vi.fn().mockResolvedValue([]),
     channelCount: vi.fn().mockResolvedValue(0),
     listChannels: vi.fn().mockResolvedValue([]),
-    send: vi.fn().mockResolvedValue()
+    // El saludo ya se ha dado: en los tests de presencia los tokens tienen dueño.
+    pubkeyOfToken: vi.fn((t) => `PK-${t}`),
+    helloTo: vi.fn(),
+    sendSealedTo: vi.fn().mockResolvedValue()
   }
 
   const room = useRoomStore()
@@ -168,7 +176,9 @@ describe('roomStore — presencia con eventos del proxy', () => {
   })
 
   describe('handleIncomingMessage', () => {
-    it('rutea CHAT_MSG: agrega mensaje y upsertea miembro', () => {
+    it('el chat en claro (CHAT_MSG) ya no existe: no se rutea ni aunque llegue', () => {
+      // Era el camino pre-sellado. Dejar el handler puesto es dejar abierta una puerta
+      // por la que se puede meter texto sin proteger: se quitó, y esto lo fija.
       const raw = 'CHAT_MSG|' + JSON.stringify({
         nickname: 'bob',
         roomName: 'general',
@@ -177,9 +187,7 @@ describe('roomStore — presencia con eventos del proxy', () => {
       })
       room.handleIncomingMessage('XYZW', raw)
 
-      const chat = room.messages.find(m => m.type === 'chat')
-      expect(chat).toMatchObject({ from: 'XYZW', nickname: 'bob', text: 'hola' })
-      expect(room.members.find(m => m.token === 'XYZW')).toMatchObject({ nickname: 'bob' })
+      expect(room.messages.find(m => m.type === 'chat')).toBeUndefined()
     })
 
     it('rutea JOIN_ANNOUNCE: upserta miembro con nickname real, envía HEARTBEAT_ACK', () => {
@@ -230,10 +238,9 @@ describe('roomStore — presencia con eventos del proxy', () => {
     })
 
     it('ignora mensajes para otra sala', () => {
-      const raw = 'CHAT_MSG|' + JSON.stringify({
+      const raw = 'JOIN_ANNOUNCE|' + JSON.stringify({
         nickname: 'bob',
         roomName: 'other',
-        text: 'hola',
         timestamp: 123
       })
       room.handleIncomingMessage('XYZW', raw)

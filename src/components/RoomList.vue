@@ -27,7 +27,7 @@
           <span class="room-name">#{{ room.name }}</span>
           <span class="member-count">({{ room.memberCount }})</span>
         </div>
-        <button @click="joinRoomClick(room.name)" class="small join-btn">
+        <button @click="joinRoomClick(room.name)" class="small join-btn" data-testid="join-room" :data-room="room.name">
           {{ t.rooms.join }}
         </button>
       </div>

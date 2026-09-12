@@ -33,7 +33,9 @@ Aplicación de chat multi-sala P2P-mesh sobre el proxy WebSocket de Dotrino. Vue
 - **Sin host por sala**: todos los miembros son peers iguales, publicados en `chat_room_<nombre>`.
 - **Real-time**: el proxy emite `joined` / `left` / `disconnected` a los miembros del canal.
 - **Identidad cross-app** vía vault (mismo keypair en chat, chess, etc.).
-- **End-to-end encryption** por destinatario: cada mensaje viaja como envelope ECDH(P-256) + AES-256-GCM. El proxy nunca ve plaintext.
+- **Todo lo dirigido va SELLADO** (CONVENCIONES §4.1): el proxio enruta pero no cifra, así que cada mensaje a un peer —incluidos el apodo, los latidos, el reto de identidad y el intercambio de reputación— viaja dentro de un sobre hacia la llave de cifrado de la bóveda del destinatario. El cliente arranca con `requireSealed: true`, que corta en las **dos** direcciones: ni manda ni acepta texto en claro.
+- **El canal público va sin datos**: es la lista de quién está en la sala y nada más. El apodo ya no se queda escrito ahí.
+- **End-to-end encryption del texto** por destinatario, además del sobre del transporte: prueba **quién** escribió (el sellado del transporte es efímero y no autentica al remitente).
 - **Reputación firmada** con web of trust: ratings firmados con ECDSA P-256 que se intercambian automáticamente entre peers de una sala.
 - **Cap de 20 personas por sala**: límite enforce en cliente (UX y CPU al hacer 19+ handshakes); el proxy mantiene su cap de 100 como fallback.
 - **Mobile responsive** con vistas single-pane intercambiables (rooms / chat / members).
@@ -43,8 +45,8 @@ Aplicación de chat multi-sala P2P-mesh sobre el proxy WebSocket de Dotrino. Vue
 
 ```jsonc
 {
-  "@dotrino/proxy-client": "^0.2.0",
-  "@dotrino/identity":     "^0.5.0",
+  "@dotrino/proxy-client": "0.22.0",
+  "@dotrino/identity":     "0.90.0",
   "vue": "^3", "pinia": "^3"
 }
 ```
@@ -67,6 +69,25 @@ VITE_WS_URL=wss://proxy.dotrino.com   # default si no se setea
 
 Para apuntar a un proxy local: `VITE_WS_URL=ws://localhost:4001`.
 
+### Pruebas
+
+```bash
+npm test             # unitarias (vitest): las decisiones del sellado y la presencia
+npm run test:e2e     # punta a punta: DOS navegadores de verdad por el proxio real
+```
+
+La de punta a punta (`test/sealed-chat.e2e.mjs`) es la que responde la pregunta que
+importa: **graba todo lo que entra y sale por el socket en los dos extremos** y comprueba
+que ahí no aparece el apodo, ni el texto, ni las notas de calificación; que el mensaje
+llega y se lee al otro lado; y que el fallo se distingue por `code` sin caer nunca a
+mandar en claro. Necesita red y un servidor local:
+
+```bash
+npx playwright install chromium
+npm run build && npm run preview -- --port 4180 &
+npm run test:e2e                      # o CHAT_BASE=https://chat.dotrino.com/
+```
+
 ## Arquitectura
 
 ### Stores (Pinia)
@@ -76,12 +97,18 @@ Para apuntar a un proxy local: `VITE_WS_URL=ws://localhost:4001`.
 
 ### Protocolo de mensajes
 
-Wire format: `TYPE|JSON_PAYLOAD` viajando como `message` dentro del envelope del proxy.
+Wire format: `TYPE|JSON_PAYLOAD`, **siempre dentro de un sobre sellado** (`sendSealedTo`).
+Lo único que viaja en claro es el **saludo del transporte** (`__cc_hello__`), que no es de
+la app: lleva una llave pública que el proxio ya tiene atada a esa conexión desde
+`identify`, y es lo que dice de quién es cada token — sin eso no hay a quién sellarle.
+
+A quien todavía no ha contestado el saludo **no se le manda en claro**: lo suyo se guarda
+y sale entero cuando conteste. A quien no se le puede sellar (`no-encpub`,
+`encpub-unverified`, `no-encpub-support`) **no se le manda nada** y la sala lo dice.
 
 | Type | Dirección | Propósito |
 |------|-----------|-----------|
 | `CHAT_ENC` | peer → peers verificados | Mensaje cifrado E2E (envelope `{iv, ct, wrap}`) |
-| `CHAT_MSG` | (legacy) | Solo se acepta; nunca se emite. |
 | `JOIN_ANNOUNCE` | newcomer → existing | "Acabo de entrar" |
 | `LEAVE_ANNOUNCE` | leaver → peers | "Me voy" |
 | `HEARTBEAT` / `HEARTBEAT_ACK` | all → all | Mantener visibilidad |

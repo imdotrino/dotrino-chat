@@ -16,6 +16,9 @@
         v-for="msg in roomStore.messages"
         :key="msg.id"
         :class="['message', msg.type]"
+        data-testid="message"
+        :data-kind="msg.type"
+        :data-nickname="msg.nickname || ''"
       >
         <div v-if="msg.type === 'system'" class="system-message">
           <em>{{ systemText(t, msg) }}</em>
@@ -38,9 +41,10 @@
         :placeholder="t.chat.placeholder"
         @keydown="handleKeydown"
         class="chat-input"
+        data-testid="composer"
         rows="2"
       ></textarea>
-      <button @click="sendMessage" class="primary" :disabled="!inputText.trim()">
+      <button @click="sendMessage" class="primary" :disabled="!inputText.trim()" data-testid="send">
         {{ t.chat.send }}
       </button>
     </div>

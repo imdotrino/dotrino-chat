@@ -10,6 +10,16 @@ vi.mock('../src/services/store.js', () => ({
   getStore: vi.fn().mockResolvedValue(null)
 }))
 
+// La bóveda es un iframe: en un test unitario se sustituye por lo mínimo que la sala
+// le pide. Lo que importa aquí es que el mensaje que se persiste salió de un SOBRE, no
+// de un campo de texto en claro.
+vi.mock('../src/services/identity.js', () => ({
+  getIdentity: vi.fn().mockResolvedValue({
+    decrypt: vi.fn().mockResolvedValue({ plaintext: 'mensaje persistible' })
+  }),
+  myPubkey: () => 'PK-ME'
+}))
+
 import { loadHistory, persistMessage } from '../src/services/store.js'
 import { useRoomStore } from '../src/stores/roomStore.js'
 import { useConnectionStore } from '../src/stores/connectionStore.js'
@@ -20,7 +30,12 @@ function setupStores ({ token = 'ME01', nickname = 'me' } = {}) {
   connection.token = token
   connection.nickname = nickname
   connection.isConnected = true
-  connection.sendMessage = vi.fn().mockResolvedValue()
+  // `sendMessage` sella uno por destinatario y devuelve a quién no se le pudo mandar:
+  // nunca lanza por un peer suelto, y NUNCA cae a mandar en claro.
+  connection.sendMessage = vi.fn(async (to) => ({
+    sent: Array.isArray(to) ? [...to] : [to], failed: []
+  }))
+  connection.greet = vi.fn()
   connection.wsProxyClient = {
     isConnected: true,
     publish: vi.fn().mockResolvedValue(),
@@ -28,7 +43,10 @@ function setupStores ({ token = 'ME01', nickname = 'me' } = {}) {
     listChannel: vi.fn().mockResolvedValue([]),
     channelCount: vi.fn().mockResolvedValue(0),
     listChannels: vi.fn().mockResolvedValue([]),
-    send: vi.fn().mockResolvedValue()
+    // El saludo ya se ha dado: en los tests de presencia los tokens tienen dueño.
+    pubkeyOfToken: vi.fn((t) => `PK-${t}`),
+    helloTo: vi.fn(),
+    sendSealedTo: vi.fn().mockResolvedValue()
   }
   const room = useRoomStore()
   return { room, connection }
@@ -67,12 +85,17 @@ describe('persistencia del historial (store del ecosistema)', () => {
     expect(chats).toHaveLength(0)
   })
 
-  it('persiste un mensaje de chat entrante (legacy CHAT_MSG)', () => {
+  it('persiste un mensaje de chat entrante (CHAT_ENC)', async () => {
     room.currentRoom = 'general'
-    room.members = [{ token: 'ME01', nickname: 'me', isMe: true }]
-    room.handleIncomingMessage('AB01', `CHAT_MSG|${JSON.stringify({
-      nickname: 'ana', text: 'mensaje persistible', roomName: 'general', timestamp: 1234
+    room.members = [
+      { token: 'ME01', nickname: 'me', isMe: true },
+      { token: 'AB01', nickname: 'ana', encryptionPubkey: 'ENC-ANA', isMe: false }
+    ]
+    room.handleIncomingMessage('AB01', `CHAT_ENC|${JSON.stringify({
+      envelope: { v: 2, iv: 'x', ct: 'y', wrap: {} },
+      nickname: 'ana', roomName: 'general', timestamp: 1234
     })}`)
+    await new Promise(r => setTimeout(r, 0))
 
     expect(persistMessage).toHaveBeenCalledTimes(1)
     const [roomArg, msgArg] = persistMessage.mock.calls[0]

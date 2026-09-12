@@ -38,6 +38,9 @@ const connectionStore = useConnectionStore()
 
 const statusText = computed(() => {
   if (connectionStore.isConnected) return props.t.status.connected
+  // «No hay perfil» no es «se cayó la red»: se arreglan de formas distintas, así que se
+  // dicen distinto. Por el `code`, nunca por la frase.
+  if (connectionStore.connectionError === 'no-identity') return props.t.status.noIdentity
   if (connectionStore.connectionError) return props.t.status.disconnected
   return props.t.status.connecting
 })
