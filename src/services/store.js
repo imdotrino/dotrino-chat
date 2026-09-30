@@ -9,14 +9,21 @@
 // (no se sincroniza salvo que actives el sync a tu Drive en el vault del store).
 
 import { Store } from '@dotrino/store'
+import { getIdentity } from './identity.js'
 
 let _storePromise = null
 
 /** Conecta (una sola vez) al store del ecosistema. Null si no alcanza. */
 export function getStore () {
   if (!_storePromise) {
-    _storePromise = Store.connect()
-      .then((s) => s)
+    // Atado al PERFIL (respaldo en la bóveda, sin mezclar cuentas). Hasta 2026-09-30 conectaba
+    // sin identidad y todo quedaba en el espacio común del navegador; `adoptCommon` lo trae al
+    // perfil una vez, sin borrar el original.
+    _storePromise = getIdentity()
+      .then((identity) => {
+        if (!identity) throw Object.assign(new Error('identity not available'), { code: 'no-identity' })
+        return Store.connect({ identity, adoptCommon: ['chat:'] })
+      })
       .catch((e) => { console.warn('Store del ecosistema inalcanzable:', e); return null })
   }
   return _storePromise

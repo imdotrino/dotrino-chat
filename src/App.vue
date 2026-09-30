@@ -100,6 +100,13 @@ watchEffect(() => {
   tb.profileTheme = profileTheme
 })
 
+// El estado del respaldo en la bóveda, a la vista en el botón de perfil (topbar ≥ 0.13).
+watchEffect(() => {
+  const tb = topbarRef.value
+  if (!tb || !identityInst.value) return
+  import('./services/store.js').then((m) => m.getStore()).then((s) => { if (s) tb.store = s })
+})
+
 onMounted(async () => {
   // Hidratar el nickname desde el vault ANTES de decidir si mostramos el
   // NicknameModal: si ya tienes identidad con nickname, no te lo volvemos a pedir.
