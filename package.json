@@ -27,6 +27,7 @@
     "@dotrino/store": "0.12.3"
   },
   "devDependencies": {
+    "@dotrino/prerender": "0.1.0",
     "@pinia/testing": "^1.0.0",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/test-utils": "^2.4.6",
