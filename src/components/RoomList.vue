@@ -221,7 +221,7 @@ button.small {
   color: var(--color-error);
   font-size: 0.85em;
   padding: var(--spacing-sm);
-  background-color: rgba(220, 53, 69, 0.1);
+  background-color: var(--dt-error-soft);
   border-radius: var(--border-radius-sm);
   margin-top: var(--spacing-sm);
 }

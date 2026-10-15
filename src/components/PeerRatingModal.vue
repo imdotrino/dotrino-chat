@@ -22,7 +22,6 @@
         <dotrino-profile
           ref="profileEl"
           mode="edit"
-          :style="profileTheme"
           :pubkey="member.pubkey"
           :name="displayName"
           :lang.attr="lang"
@@ -63,25 +62,6 @@ const suspicion = computed(() => {
   if (ratio >= 0.2) return null
   return stats
 })
-
-// Tema del chat (claro/oscuro adaptativo vía sus --color-*).
-const profileTheme = {
-  '--ccp-bg': 'var(--color-card-bg)',
-  '--ccp-bg-2': 'var(--color-surface)',
-  '--ccp-bg-3': 'var(--color-surface-variant)',
-  '--ccp-bg-4': 'var(--color-border-light)',
-  '--ccp-border': 'var(--color-border)',
-  '--ccp-text': 'var(--color-text)',
-  '--ccp-muted': 'var(--color-text-secondary)',
-  '--ccp-accent': 'var(--color-primary)',
-  '--ccp-accent-2': 'var(--color-primary-dark)',
-  '--ccp-derived': '#d49a00',
-  '--ccp-gold': '#f5b301',
-  '--ccp-online': 'var(--color-success)',
-  '--ccp-affinity': 'var(--color-secondary)',
-  '--ccp-input-bg': 'var(--color-background)',
-  '--ccp-radius': '10px',
-}
 
 // Provider: datos locales del vault (instantáneos) + reputación de la nube.
 // El rate pasa por roomStore.ratePeer (mantiene su bookkeeping: trustMap,
@@ -166,6 +146,6 @@ onBeforeUnmount(() => {
 input { font-size: 16px; padding: 0.5rem; border: 1px solid var(--color-border); border-radius: 4px; font-family: inherit; }
 .suspicion {
   margin-top: 1rem; padding: 0.6rem; border-radius: 4px;
-  background: rgba(220, 53, 69, 0.12); color: #c0392b; font-size: 0.85em;
+  background: var(--dt-error-soft); color: var(--dt-error-ink); font-size: 0.85em;
 }
 </style>

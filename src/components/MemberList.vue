@@ -164,15 +164,15 @@ const sortedMembers = computed(() => {
 
 .rating-badge {
   font-size: 0.75em;
-  background: rgba(245, 179, 1, 0.18);
-  color: #d49a00;
+  background: color-mix(in srgb, var(--dt-gold) 18%, transparent);
+  color: var(--dt-gold);
   padding: 1px 6px;
   border-radius: 999px;
   white-space: nowrap;
 }
 .rating-badge.derived {
-  background: rgba(52, 152, 219, 0.18);
-  color: #2477b8;
+  background: var(--dt-accent-tint);
+  color: var(--dt-accent);
 }
 
 .member-item.offline {

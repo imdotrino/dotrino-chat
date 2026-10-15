@@ -10,7 +10,7 @@
       brand="Dotrino Chat"
       icon="./icon.svg"
       brand-href="./"
-      profile
+      profile theme
       :lang.attr="lang"
       support-href="https://ko-fi.com/dotrino"
       support-repo="imdotrino/dotrino-chat"
@@ -81,23 +81,11 @@ const topbarRef = ref(null)
 const identityInst = ref(null)
 const reputationInst = ref(null)
 
-// Tema del modal de perfil, acorde a la paleta de la app (theme.css).
-const profileTheme = {
-  '--ccp-bg': 'var(--color-card-bg)', '--ccp-bg-2': 'var(--color-surface)',
-  '--ccp-bg-3': 'var(--color-surface-variant)', '--ccp-bg-4': 'var(--color-border-light)',
-  '--ccp-border': 'var(--color-border)', '--ccp-text': 'var(--color-text)',
-  '--ccp-muted': 'var(--color-text-secondary)', '--ccp-accent': 'var(--color-primary)',
-  '--ccp-accent-2': 'var(--color-primary-dark)', '--ccp-derived': '#d49a00', '--ccp-gold': '#f5b301',
-  '--ccp-online': 'var(--color-success)', '--ccp-affinity': 'var(--color-secondary)',
-  '--ccp-input-bg': 'var(--color-background)', '--ccp-radius': '10px',
-}
-
 watchEffect(() => {
   const tb = topbarRef.value
   if (!tb) return
   tb.identity = identityInst.value ?? null
   tb.reputation = reputationInst.value ?? null
-  tb.profileTheme = profileTheme
 })
 
 // El estado del respaldo en la bóveda, a la vista en el botón de perfil (topbar ≥ 0.13).
@@ -135,12 +123,6 @@ onMounted(async () => {
    header anterior; no encoge en el layout en columna. */
 dotrino-topbar {
   flex-shrink: 0;
-  --dotrino-topbar-bg: var(--color-header-bg);
-  --dotrino-topbar-text: var(--color-text-on-primary);
-  --dotrino-topbar-muted: rgba(255, 255, 255, 0.85);
-  --dotrino-topbar-border: rgba(255, 255, 255, 0.25);
-  --dotrino-topbar-accent: rgba(255, 255, 255, 0.3);
-  --dotrino-topbar-accent-text: var(--color-text-on-primary);
 }
 
 .main-layout {

@@ -79,21 +79,21 @@ const reconnect = () => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background-color: #fff;
+  background-color: var(--dt-text-faint);
   flex-shrink: 0;
 }
 
 .status-indicator.connected .dot {
-  background-color: #34ce57;
+  background-color: var(--dt-ok);
 }
 
 .status-indicator.error .dot {
-  background-color: #dc3545;
+  background-color: var(--dt-error);
   animation: pulse 1s infinite;
 }
 
 .status-indicator.connecting .dot {
-  background-color: #ffc107;
+  background-color: var(--dt-busy);
   animation: pulse 0.6s infinite;
 }
 
@@ -116,7 +116,7 @@ const reconnect = () => {
 .token {
   font-family: monospace;
   font-weight: bold;
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: color-mix(in srgb, var(--dt-text) 20%, transparent);
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -124,13 +124,13 @@ const reconnect = () => {
 button.small {
   padding: 0.4em 0.8em;
   font-size: 0.85em;
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
+  background-color: color-mix(in srgb, var(--dt-text) 20%, transparent);
+  color: var(--dt-text);
+  border: 1px solid color-mix(in srgb, var(--dt-text) 30%, transparent);
 }
 
 button.small:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: color-mix(in srgb, var(--dt-text) 30%, transparent);
 }
 
 @media (max-width: 768px) {
