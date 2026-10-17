@@ -55,13 +55,13 @@ export const messages = {
       // Cuando a alguien de la sala no se le puede mandar nada porque no hay con qué
       // protegerlo. Se dice: si no, esa persona figura en la lista y no recibe nada.
       peerUnreachable: ({ nickname, code }) => {
-        const quien = nickname ? `${nickname} no recibe` : 'Alguien de la sala no recibe'
-        const motivo = {
+        const who = nickname ? `${nickname} no recibe` : 'Alguien de la sala no recibe'
+        const reason = {
           'no-encpub': 'su app todavía no publica con qué protegerlo.',
           'encpub-unverified': 'lo que llegó de esa persona no cuadra con su perfil.',
           'no-encpub-support': 'el servidor por el que pasáis es antiguo.',
         }[code] || 'no se pudo proteger el envío.'
-        return `${quien} tus mensajes: ${motivo}`
+        return `${who} tus mensajes: ${reason}`
       },
     },
     errors: {
@@ -136,13 +136,13 @@ export const messages = {
       noVerifiedMembers: () => 'Nobody else in the room can read your message yet. Give it a few seconds.',
       sendFailed: () => 'Your message did not go through. Try again.',
       peerUnreachable: ({ nickname, code }) => {
-        const quien = nickname ? `${nickname} is not getting` : 'Someone in the room is not getting'
-        const motivo = {
+        const who = nickname ? `${nickname} is not getting` : 'Someone in the room is not getting'
+        const reason = {
           'no-encpub': 'their app does not publish what it takes to protect it yet.',
           'encpub-unverified': 'what came from them does not match their profile.',
           'no-encpub-support': 'the server you go through is an old one.',
         }[code] || 'the message could not be protected.'
-        return `${quien} your messages: ${motivo}`
+        return `${who} your messages: ${reason}`
       },
     },
     errors: {

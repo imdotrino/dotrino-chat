@@ -307,9 +307,9 @@ describe('roomStore — listPublicRooms (descubrimiento dinámico)', () => {
 
     await room.listPublicRooms()
 
-    const miSala = room.rooms.find(r => r.name === 'mi-sala')
-    expect(miSala).toBeTruthy()
-    expect(miSala.memberCount).toBe(1)
+    const myRoom = room.rooms.find(r => r.name === 'mi-sala')
+    expect(myRoom).toBeTruthy()
+    expect(myRoom.memberCount).toBe(1)
   })
 
   it('si listChannels falla, no rompe (ya catcheado)', async () => {

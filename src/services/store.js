@@ -24,7 +24,7 @@ export function getStore () {
         if (!identity) throw Object.assign(new Error('identity not available'), { code: 'no-identity' })
         return Store.connect({ identity, adoptCommon: ['chat:'] })
       })
-      .catch((e) => { console.warn('Store del ecosistema inalcanzable:', e); return null })
+      .catch((e) => { console.warn('ecosystem store unreachable:', e); return null })
   }
   return _storePromise
 }
@@ -37,7 +37,7 @@ export async function loadHistory (room, limit = 200) {
   if (!store) return []
   try {
     return await store.listThread(threadKey(room), { limit })
-  } catch (e) { console.warn('loadHistory falló:', e); return [] }
+  } catch (e) { console.warn('loadHistory failed:', e); return [] }
 }
 
 /** Persiste un mensaje de chat (fire-and-forget; ignora fallos). */
@@ -55,12 +55,12 @@ export async function persistMessage (room, message) {
       text: message.text,
       isMe: !!message.isMe
     })
-  } catch (e) { console.warn('persistMessage falló:', e) }
+  } catch (e) { console.warn('persistMessage failed:', e) }
 }
 
 /** Borra el historial persistido de una sala. */
 export async function clearHistory (room) {
   const store = await getStore()
   if (!store) return
-  try { await store.removeThread(threadKey(room)) } catch (e) { console.warn('clearHistory falló:', e) }
+  try { await store.removeThread(threadKey(room)) } catch (e) { console.warn('clearHistory failed:', e) }
 }

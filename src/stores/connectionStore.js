@@ -109,10 +109,10 @@ export const useConnectionStore = defineStore('connection', () => {
   // vault no está disponible: sin identidad no hay nickname.
   const setNickname = async (name) => {
     const clean = sanitizeNickname((name || '').trim())
-    if (!clean) throw new Error('Nickname vacío')
+    if (!clean) throw new Error('empty nickname')
     const id = await Identity.connect()
     try { await id?.ready?.() } catch (_) {}
-    if (!id?.setMyNickname) throw new Error('Vault de identidad no disponible')
+    if (!id?.setMyNickname) throw new Error('identity vault not available')
     await id.setMyNickname(clean)
     nickname.value = sanitizeNickname(id.me?.nickname || clean)
   }
@@ -142,13 +142,13 @@ export const useConnectionStore = defineStore('connection', () => {
             vaultNick = sanitizeNickname(id.me?.nickname || legacy)
             localStorage.removeItem('chat_nickname')
           } catch (e) {
-            console.warn('Migración de nick legado al vault falló (reintenta luego):', e?.message || e)
+            console.warn('legacy nickname migration to the vault failed (will retry):', e?.message || e)
           }
         }
       }
       nickname.value = vaultNick
     } catch (e) {
-      console.warn('Vault no disponible para hidratar nickname:', e?.message || e)
+      console.warn('vault not available to hydrate the nickname:', e?.message || e)
     } finally {
       nicknameHydrated.value = true
     }

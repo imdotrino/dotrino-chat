@@ -90,9 +90,9 @@ export const useRoomStore = defineStore('room', () => {
         queueForToken(token, raw)
         continue
       }
-      const clave = `${token}|${code}`
-      if (warned.has(clave)) continue
-      warned.add(clave)
+      const warnKey = `${token}|${code}`
+      if (warned.has(warnKey)) continue
+      warned.add(warnKey)
       const member = members.value.find(m => m.token === token)
       messages.value.push(sysMessage('peerUnreachable', {
         nickname: member?.nickname || '', code
@@ -104,7 +104,7 @@ export const useRoomStore = defineStore('room', () => {
   /** Quien se va deja de estar esperando: su token no vuelve. */
   const forgetPeer = (token) => {
     pending.delete(token)
-    for (const clave of [...warned]) if (clave.startsWith(token + '|')) warned.delete(clave)
+    for (const warnKey of [...warned]) if (warnKey.startsWith(token + '|')) warned.delete(warnKey)
   }
 
   const queueForToken = (token, raw) => {
@@ -318,7 +318,7 @@ export const useRoomStore = defineStore('room', () => {
       }
 
       const id = await getIdentity()
-      if (!id) throw new Error('Identity vault no disponible — no se puede cifrar')
+      if (!id) throw new Error('identity vault not available: cannot encrypt')
 
       const envelope = await id.encrypt(recipients, trimmed)
 
@@ -583,14 +583,14 @@ export const useRoomStore = defineStore('room', () => {
 
     const id = await getIdentity()
     if (!id) {
-      console.warn('Identity vault no disponible: no se puede descifrar el mensaje')
+      console.warn('identity vault not available: cannot decrypt the message')
       return
     }
 
     const sender = members.value.find(m => m.token === fromToken)
     const senderEncryptionPubkey = sender?.encryptionPubkey
     if (!senderEncryptionPubkey) {
-      console.warn(`No tengo encryptionPubkey de ${fromToken}; no se puede descifrar`)
+      console.warn(`no encryptionPubkey for ${fromToken}: cannot decrypt`)
       return
     }
 
