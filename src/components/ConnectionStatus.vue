@@ -31,7 +31,7 @@ import { computed } from 'vue'
 import { useConnectionStore } from '../stores/connectionStore'
 
 const props = defineProps({
-  t: { type: Object, required: true }
+  t: { type: /** @type {import('vue').PropType<import('../types').Messages>} */ (Object), required: true }
 })
 
 const connectionStore = useConnectionStore()

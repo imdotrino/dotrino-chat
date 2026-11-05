@@ -18,7 +18,7 @@
         :class="['message', msg.type]"
         data-testid="message"
         :data-kind="msg.type"
-        :data-nickname="msg.nickname || ''"
+        :data-nickname="msg.type === 'chat' ? msg.nickname || '' : ''"
       >
         <div v-if="msg.type === 'system'" class="system-message">
           <em>{{ systemText(t, msg) }}</em>
@@ -61,7 +61,7 @@ import { useRoomStore } from '../stores/roomStore'
 import { systemText } from '../i18n'
 
 defineProps({
-  t: { type: Object, required: true }
+  t: { type: /** @type {import('vue').PropType<import('../types').Messages>} */ (Object), required: true }
 })
 
 defineEmits(['back', 'show-members'])
@@ -69,8 +69,9 @@ defineEmits(['back', 'show-members'])
 const roomStore = useRoomStore()
 
 const inputText = ref('')
-const messagesContainer = ref(null)
+const messagesContainer = ref(/** @type {HTMLElement | null} */ (null))
 
+/** @param {KeyboardEvent} e */
 const handleKeydown = (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -102,6 +103,7 @@ const scrollToBottom = async () => {
   }
 }
 
+/** @param {number} timestamp */
 const formatTime = (timestamp) => {
   const date = new Date(timestamp)
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })

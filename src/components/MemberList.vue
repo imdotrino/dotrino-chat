@@ -8,7 +8,7 @@
     <div class="member-items">
       <div
         v-for="member in sortedMembers"
-        :key="member.token"
+        :key="member.token ?? undefined"
         :class="['member-item', { offline: isOffline(member), clickable: !member.isMe && !!member.pubkey }]"
         :title="!member.isMe && member.pubkey ? tooltipFor(member) : undefined"
         @click="!member.isMe && member.pubkey ? selectMember(member) : null"
@@ -24,7 +24,7 @@
                 class="rating-badge"
                 :class="{ derived: ratingFor(member).source === 'derived' }"
               >
-                ★ {{ ratingFor(member).value.toFixed(ratingFor(member).source === 'derived' ? 1 : 0) }}
+                ★ {{ (ratingFor(member).value ?? 0).toFixed(ratingFor(member).source === 'derived' ? 1 : 0) }}
               </span>
             </template>
           </div>
@@ -49,29 +49,35 @@ import { computeDerivedRating } from '../utils/rating'
 import PeerRatingModal from './PeerRatingModal.vue'
 
 const props = defineProps({
-  t: { type: Object, required: true },
-  lang: { type: String, default: 'es' }
+  t: { type: /** @type {import('vue').PropType<import('../types').Messages>} */ (Object), required: true },
+  lang: { type: /** @type {import('vue').PropType<import('../types').Lang>} */ (String), default: 'es' }
 })
 
 defineEmits(['back'])
 
 const roomStore = useRoomStore()
-const selectedMember = ref(null)
+/** @typedef {import('../types').Member} Member */
+
+const selectedMember = ref(/** @type {Member | null} */ (null))
 
 const staleTime = 3 * 60 * 1000 // 3 minutes
 
+/** @param {Member} member */
 const isOffline = (member) => {
   return !member.isMe && (Date.now() - member.lastSeen) > staleTime
 }
 
+/** @param {Member} member */
 const displayName = (member) => {
   return member.peer?.nickname || member.nickname
 }
 
+/** @param {Member} member */
 const ratingFor = (member) => {
   return computeDerivedRating(member.peer, roomStore.trustMap)
 }
 
+/** @param {Member} member */
 const tooltipFor = (member) => {
   const tip = props.t.members.tip
   const r = ratingFor(member)
@@ -84,6 +90,7 @@ onMounted(() => {
   roomStore.refreshTrustMap?.()
 })
 
+/** @param {Member} member */
 const selectMember = (member) => {
   selectedMember.value = member
 }

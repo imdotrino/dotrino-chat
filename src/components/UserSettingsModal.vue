@@ -62,7 +62,7 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const connectionStore = useConnectionStore()
-const fileInput = ref(null)
+const fileInput = ref(/** @type {HTMLInputElement | null} */ (null))
 
 const nickname = ref(connectionStore.nickname || '')
 const nicknameStatus = ref('')
@@ -71,6 +71,7 @@ const ioError = ref(false)
 const busy = ref(false)
 const myPubkey = ref('')
 
+/** @type {ReturnType<typeof setTimeout> | null} */
 let nicknameTimer = null
 
 const shortPubkey = computed(() => {
@@ -134,7 +135,7 @@ const onExport = async () => {
     ioStatus.value = 'Identidad exportada'
   } catch (e) {
     ioError.value = true
-    ioStatus.value = 'No se pudo exportar: ' + (e.message || e)
+    ioStatus.value = 'No se pudo exportar: ' + (/** @type {Error} */ (e).message || e)
   } finally {
     busy.value = false
   }
@@ -144,9 +145,11 @@ const onImportClick = () => {
   fileInput.value?.click()
 }
 
+/** @param {Event} event */
 const onImportFile = async (event) => {
-  const file = event.target.files?.[0]
-  event.target.value = ''
+  const input = /** @type {HTMLInputElement} */ (event.target)
+  const file = input.files?.[0]
+  input.value = ''
   if (!file) return
   if (!confirm('Importar reemplazará tu identidad actual. ¿Continuar?')) return
   busy.value = true
@@ -166,7 +169,7 @@ const onImportFile = async (event) => {
     ioStatus.value = 'Identidad importada. Recarga la página para que todas las apps vean la nueva identidad.'
   } catch (e) {
     ioError.value = true
-    ioStatus.value = 'Archivo inválido: ' + (e.message || e)
+    ioStatus.value = 'Archivo inválido: ' + (/** @type {Error} */ (e).message || e)
   } finally {
     busy.value = false
   }

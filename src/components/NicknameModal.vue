@@ -29,14 +29,14 @@ import { ref, computed } from 'vue'
 import { useConnectionStore } from '../stores/connectionStore'
 
 const props = defineProps({
-  t: { type: Object, required: true }
+  t: { type: /** @type {import('vue').PropType<import('../types').Messages>} */ (Object), required: true }
 })
 
 const connectionStore = useConnectionStore()
 
 const inputName = ref('')
 // Guardamos la clave del aviso, no su texto: así también cambia de idioma.
-const errorKey = ref('')
+const errorKey = ref(/** @type {'' | 'tooShort' | 'tooLong' | 'invalid' | 'saveFailed'} */ (''))
 const error = computed(() => (errorKey.value ? props.t.nick[errorKey.value] : ''))
 
 const show = computed(() => connectionStore.nicknameHydrated && !connectionStore.nicknameSet)

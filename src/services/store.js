@@ -11,9 +11,13 @@
 import { Store } from '@dotrino/store'
 import { getIdentity } from './identity.js'
 
+/** @type {Promise<Store | null> | null} */
 let _storePromise = null
 
-/** Conecta (una sola vez) al store del ecosistema. Null si no alcanza. */
+/**
+ * Conecta (una sola vez) al store del ecosistema. Null si no alcanza.
+ * @returns {Promise<Store | null>}
+ */
 export function getStore () {
   if (!_storePromise) {
     // Atado al PERFIL (respaldo en la bóveda, sin mezclar cuentas). Hasta 2026-09-30 conectaba
@@ -29,9 +33,15 @@ export function getStore () {
   return _storePromise
 }
 
+/** @param {string} room */
 const threadKey = (room) => `chat:${room}`
 
-/** Carga el historial persistido de una sala (best-effort, vacío si no alcanza). */
+/**
+ * Carga el historial persistido de una sala (best-effort, vacío si no alcanza).
+ * @param {string} room
+ * @param {number} [limit]
+ * @returns {Promise<import('@dotrino/store').ThreadEntry[]>}
+ */
 export async function loadHistory (room, limit = 200) {
   const store = await getStore()
   if (!store) return []
@@ -40,7 +50,12 @@ export async function loadHistory (room, limit = 200) {
   } catch (e) { console.warn('loadHistory failed:', e); return [] }
 }
 
-/** Persiste un mensaje de chat (fire-and-forget; ignora fallos). */
+/**
+ * Persiste un mensaje de chat (fire-and-forget; ignora fallos).
+ * @param {string | null} room
+ * @param {import('../types').ChatMessage} message
+ * @returns {Promise<void>}
+ */
 export async function persistMessage (room, message) {
   if (!room || !message || message.type !== 'chat') return
   const store = await getStore()
@@ -58,7 +73,11 @@ export async function persistMessage (room, message) {
   } catch (e) { console.warn('persistMessage failed:', e) }
 }
 
-/** Borra el historial persistido de una sala. */
+/**
+ * Borra el historial persistido de una sala.
+ * @param {string} room
+ * @returns {Promise<void>}
+ */
 export async function clearHistory (room) {
   const store = await getStore()
   if (!store) return

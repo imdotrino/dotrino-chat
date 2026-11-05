@@ -41,16 +41,16 @@ import { useRoomStore } from '../stores/roomStore'
 import '@dotrino/profile'
 
 const props = defineProps({
-  member: { type: Object, default: null },
-  t: { type: Object, required: true },
-  lang: { type: String, default: 'es' }
+  member: { type: /** @type {import('vue').PropType<import('../types').Member | null>} */ (Object), default: null },
+  t: { type: /** @type {import('vue').PropType<import('../types').Messages>} */ (Object), required: true },
+  lang: { type: /** @type {import('vue').PropType<import('../types').Lang>} */ (String), default: 'es' }
 })
 const emit = defineEmits(['close'])
 
 const roomStore = useRoomStore()
 
 const customNickname = ref('')
-const profileEl = ref(null)
+const profileEl = ref(/** @type {import('@dotrino/profile').DotrinoProfile | null} */ (null))
 
 const displayName = computed(() => props.member?.peer?.nickname || props.member?.nickname || '')
 
@@ -66,6 +66,7 @@ const suspicion = computed(() => {
 // Provider: datos locales del vault (instantáneos) + reputación de la nube.
 // El rate pasa por roomStore.ratePeer (mantiene su bookkeeping: trustMap,
 // badges del MemberList) y además publica la atestación firmada al registro.
+/** @type {import('@dotrino/profile').ProfileProvider} */
 const provider = {
   async getMyRating () {
     const peer = props.member?.peer
@@ -78,7 +79,8 @@ const provider = {
   async getEndorsements () {
     const list = (props.member?.peer?.endorsements || [])
       .filter(e => roomStore.trustMap.has(e.ratedBy))
-      .map(e => ({ ratedBy: e.ratedBy, rating: e.rating, issuedAt: e.issuedAt || e.ts }))
+      // `ts`: nombre viejo de `issuedAt` en endorsements guardados antes.
+      .map(e => ({ ratedBy: e.ratedBy, rating: e.rating, issuedAt: e.issuedAt || /** @type {{ ts?: number }} */ (e).ts }))
     const vals = list.map(e => e.rating).filter(n => typeof n === 'number')
     return { endorsements: list, derived: vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null }
   },
@@ -100,6 +102,7 @@ const provider = {
 
 const onRated = () => emit('close')
 
+/** @param {import('@dotrino/profile').DotrinoProfile | null} el */
 function bindEl (el) {
   if (!el) return
   el.provider = provider

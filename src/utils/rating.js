@@ -7,8 +7,8 @@
  *    we have rated (weight = ourTrust / 5). Endorsements from unknown
  *    raters are ignored.
  *
- * @param {Object} peer Peer record from the vault
- * @param {Object} ratedByMap Map<pubkey, ratingINT 0-5> of peers I've rated
+ * @param {import('@dotrino/identity').PeerInfo | null | undefined} peer Peer record from the vault
+ * @param {Map<string, number>} ratedByMap Map<pubkey, ratingINT 0-5> of peers I've rated
  * @returns {{value: number|null, source: 'mine'|'derived'|null, count: number}}
  */
 export function computeDerivedRating (peer, ratedByMap) {
@@ -37,8 +37,12 @@ export function computeDerivedRating (peer, ratedByMap) {
 /**
  * Build a Map<pubkey, rating> for peers I have rated, used as trust input
  * to weight endorsements.
+ *
+ * @param {import('@dotrino/identity').PeerInfo[]} allPeersList
+ * @returns {Map<string, number>}
  */
 export function buildTrustMap (allPeersList) {
+  /** @type {Map<string, number>} */
   const map = new Map()
   for (const p of allPeersList) {
     const r = p?.myRating?.rating

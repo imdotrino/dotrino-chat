@@ -5,19 +5,22 @@ import { Identity } from '@dotrino/identity'
 import { sanitizeNickname } from '../utils/sanitize'
 import { getIdentity } from '../services/identity'
 
+/** @typedef {import('../types').CodedError} CodedError */
+
 export const useConnectionStore = defineStore('connection', () => {
   // Get singleton WebSocket client
   const wsProxyClient = getWebSocketProxyClient()
 
   // State
-  const token = ref(null)
+  const token = ref(/** @type {string | null} */ (null))
   // La CITA: el código corto que sí se le puede enseñar a una persona (6
   // caracteres, caduca en minutos, un solo uso). `token` es la instancia con la
   // que se rutea internamente y no se muestra.
-  const pairingCode = ref(null)
+  const pairingCode = ref(/** @type {string | null} */ (null))
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let pairingTimer = null
   const isConnected = ref(false)
-  const connectionError = ref(null)
+  const connectionError = ref(/** @type {string | null} */ (null))
   const wsUrl = ref(import.meta.env.VITE_WS_URL || 'wss://proxy.dotrino.com')
   // El nickname vive ÚNICAMENTE en el vault de identidad (id.dotrino.com). No
   // hay copia paralela en localStorage: la identidad es la única fuente de
@@ -84,14 +87,17 @@ export const useConnectionStore = defineStore('connection', () => {
       // La identidad de red es la de la bóveda (CLAUDE.md): así la del cable coincide
       // con la que firma, se habilita la cola offline y —lo que hace falta aquí— el
       // anuncio de la llave de cifrado sale firmado por quien dice ser.
+      // Sin perfil activo no hay con qué identificarse: se dice con un error que se
+      // pueda buscar, en vez del TypeError de leer `publickey` de null.
+      if (!id.me) throw new Error('identity has no active profile')
       await wsProxyClient.identifyAs({
         publickey: id.me.publickey,
-        sign: (data) => id.signData(data),
+        sign: (/** @type {string} */ data) => id.signData(data),
       })
 
       isConnected.value = true
     } catch (error) {
-      connectionError.value = error.message
+      connectionError.value = /** @type {Error} */ (error).message
       isConnected.value = false
       console.error('Connection error:', error)
     }
@@ -107,6 +113,7 @@ export const useConnectionStore = defineStore('connection', () => {
   // local se actualiza solo tras confirmar la escritura en el vault, para que no
   // exista nunca un nick "de chat" desincronizado de la identidad. Lanza si el
   // vault no está disponible: sin identidad no hay nickname.
+  /** @param {string | null | undefined} name */
   const setNickname = async (name) => {
     const clean = sanitizeNickname((name || '').trim())
     if (!clean) throw new Error('empty nickname')
@@ -142,13 +149,13 @@ export const useConnectionStore = defineStore('connection', () => {
             vaultNick = sanitizeNickname(id.me?.nickname || legacy)
             localStorage.removeItem('chat_nickname')
           } catch (e) {
-            console.warn('legacy nickname migration to the vault failed (will retry):', e?.message || e)
+            console.warn('legacy nickname migration to the vault failed (will retry):', /** @type {Error | undefined} */ (e)?.message || e)
           }
         }
       }
       nickname.value = vaultNick
     } catch (e) {
-      console.warn('vault not available to hydrate the nickname:', e?.message || e)
+      console.warn('vault not available to hydrate the nickname:', /** @type {Error | undefined} */ (e)?.message || e)
     } finally {
       nicknameHydrated.value = true
     }
@@ -164,11 +171,15 @@ export const useConnectionStore = defineStore('connection', () => {
    * pudo mandar y por qué (`code`), para que la sala lo diga en pantalla. Lo que no
    * hace nunca es mandarlo en claro: si no se puede sellar, no sale.
    *
+   * @param {string | string[]} toTokens
+   * @param {string} rawMessage
    * @returns {Promise<{ sent: string[], failed: Array<{token:string, code:string}> }>}
    */
   const sendMessage = async (toTokens, rawMessage) => {
     const tokens = Array.isArray(toTokens) ? toTokens : [toTokens]
+    /** @type {string[]} */
     const sent = []
+    /** @type {Array<{ token: string, code: string }>} */
     const failed = []
     await Promise.all(tokens.map(async (t) => {
       const peerPubkey = wsProxyClient.pubkeyOfToken(t)
@@ -183,21 +194,26 @@ export const useConnectionStore = defineStore('connection', () => {
         // Por `code`, nunca por la frase: `no-encpub` (no ha publicado con qué sellarle),
         // `encpub-unverified` (llegó una llave que esa identidad no firmó) y
         // `no-encpub-support` (el proxio es viejo) se arreglan de formas distintas.
-        failed.push({ token: t, code: error?.code || 'unknown' })
-        console.warn(`[chat] cannot seal to ${t}: ${error?.code || error?.message}`)
+        const err = /** @type {CodedError | undefined} */ (error)
+        failed.push({ token: t, code: err?.code || 'unknown' })
+        console.warn(`[chat] cannot seal to ${t}: ${err?.code || err?.message}`)
       }
     }))
     return { sent, failed }
   }
 
-  /** Saludar a un token para saber de quién es: sin eso no hay a quién sellarle. */
+  /**
+   * Saludar a un token para saber de quién es: sin eso no hay a quién sellarle.
+   * @param {string | null | Array<string | null>} tokens
+   */
   const greet = (tokens) => {
-    const list = (Array.isArray(tokens) ? tokens : [tokens]).filter((t) => t && t !== token.value)
+    const list = /** @type {string[]} */ ((Array.isArray(tokens) ? tokens : [tokens]).filter((t) => t && t !== token.value))
     if (!list.length) return
     try {
       wsProxyClient.helloTo(list)
     } catch (error) {
-      console.warn('[chat] greeting failed:', error?.code || error?.message)
+      const err = /** @type {CodedError | undefined} */ (error)
+      console.warn('[chat] greeting failed:', err?.code || err?.message)
     }
   }
 

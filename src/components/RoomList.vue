@@ -43,7 +43,7 @@ import { useRoomStore } from '../stores/roomStore'
 import { errorText } from '../i18n'
 
 const props = defineProps({
-  t: { type: Object, required: true }
+  t: { type: /** @type {import('vue').PropType<import('../types').Messages>} */ (Object), required: true }
 })
 
 const roomStore = useRoomStore()
@@ -51,13 +51,14 @@ const roomStore = useRoomStore()
 const newRoomName = ref('')
 // Guardamos el error, no su texto: así el aviso también cambia de idioma.
 // `{ local }` = validación de este formulario; si no, es un error del store.
-const failure = ref(null)
+const failure = ref(/** @type {{ local: 'nameRequired' } | import('../types').CodedError | null} */ (null))
 const error = computed(() => {
   const f = failure.value
   if (!f) return ''
-  return f.local ? props.t.rooms[f.local] : errorText(props.t, f)
+  return 'local' in f ? props.t.rooms[f.local] : errorText(props.t, f)
 })
 
+/** @type {ReturnType<typeof setInterval> | null} */
 let pollInterval = null
 
 onMounted(() => {
@@ -91,16 +92,17 @@ const createRoom = async () => {
     newRoomName.value = ''
     failure.value = null
   } catch (e) {
-    failure.value = e
+    failure.value = /** @type {import('../types').CodedError} */ (e)
   }
 }
 
+/** @param {string} name */
 const joinRoomClick = async (name) => {
   try {
     await roomStore.joinRoom(name)
     failure.value = null
   } catch (e) {
-    failure.value = e
+    failure.value = /** @type {import('../types').CodedError} */ (e)
   }
 }
 </script>

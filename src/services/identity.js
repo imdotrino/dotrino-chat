@@ -4,10 +4,15 @@
 
 import { Identity } from '@dotrino/identity'
 
+/** @type {Identity | null} */
 let identity = null
+/** @type {Promise<Identity | null> | null} */
 let _promise = null
 
-/** Conecta (una sola vez) al vault. Null si no alcanza: la app sigue sin identidad. */
+/**
+ * Conecta (una sola vez) al vault. Null si no alcanza: la app sigue sin identidad.
+ * @returns {Promise<Identity | null>}
+ */
 export async function getIdentity () {
   if (identity) return identity
   if (!_promise) {
@@ -22,5 +27,8 @@ export async function getIdentity () {
   return _promise
 }
 
-/** Mi pubkey del vault (o null si aún no conectó / no hay vault). */
+/**
+ * Mi pubkey del vault (o null si aún no conectó / no hay vault).
+ * @returns {string | null}
+ */
 export function myPubkey () { return identity?.me?.publickey || null }

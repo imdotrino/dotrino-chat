@@ -6,6 +6,12 @@
 // propios; aquí solo repetimos su misma forma de resolverlo para el primer
 // render (el topbar puede no haber montado todavía).
 
+/**
+ * @typedef {import('./types').Lang} Lang
+ * @typedef {import('./types').Messages} Messages
+ */
+
+/** @returns {Lang} */
 export function detectLang () {
   try {
     const saved = localStorage.getItem('dotrino.lang')
@@ -14,6 +20,7 @@ export function detectLang () {
   return (navigator.language || 'es').toLowerCase().startsWith('en') ? 'en' : 'es'
 }
 
+/** @satisfies {Record<Lang, Messages>} */
 export const messages = {
   es: {
     status: {
@@ -56,11 +63,11 @@ export const messages = {
       // protegerlo. Se dice: si no, esa persona figura en la lista y no recibe nada.
       peerUnreachable: ({ nickname, code }) => {
         const who = nickname ? `${nickname} no recibe` : 'Alguien de la sala no recibe'
-        const reason = {
+        const reason = /** @type {Record<string, string>} */ ({
           'no-encpub': 'su app todavía no publica con qué protegerlo.',
           'encpub-unverified': 'lo que llegó de esa persona no cuadra con su perfil.',
           'no-encpub-support': 'el servidor por el que pasáis es antiguo.',
-        }[code] || 'no se pudo proteger el envío.'
+        })[String(code)] || 'no se pudo proteger el envío.'
         return `${who} tus mensajes: ${reason}`
       },
     },
@@ -137,11 +144,11 @@ export const messages = {
       sendFailed: () => 'Your message did not go through. Try again.',
       peerUnreachable: ({ nickname, code }) => {
         const who = nickname ? `${nickname} is not getting` : 'Someone in the room is not getting'
-        const reason = {
+        const reason = /** @type {Record<string, string>} */ ({
           'no-encpub': 'their app does not publish what it takes to protect it yet.',
           'encpub-unverified': 'what came from them does not match their profile.',
           'no-encpub-support': 'the server you go through is an old one.',
-        }[code] || 'the message could not be protected.'
+        })[String(code)] || 'the message could not be protected.'
         return `${who} your messages: ${reason}`
       },
     },
@@ -187,6 +194,9 @@ export const messages = {
 /**
  * Texto de un aviso de la conversación (`{ key, params }` del roomStore).
  * Si llegara un aviso viejo con el texto ya armado, lo respetamos.
+ * @param {Messages} t
+ * @param {{ key?: string, params?: import('./types').MsgParams, text?: string } | null | undefined} msg
+ * @returns {string}
  */
 export function systemText (t, msg) {
   const fn = msg?.key && t.system[msg.key]
@@ -196,8 +206,12 @@ export function systemText (t, msg) {
 /**
  * Texto de un error del roomStore. Los errores viajan con `code` + `params`
  * (el `message` es para el log), así la UI elige el idioma.
+ * @param {Messages} t
+ * @param {unknown} e
+ * @returns {string}
  */
 export function errorText (t, e) {
-  const fn = e?.code && t.errors[e.code]
-  return fn ? fn(e.params || {}) : t.errors.generic()
+  const err = /** @type {import('./types').CodedError | null | undefined} */ (e)
+  const fn = err?.code && t.errors[err.code]
+  return fn ? fn(err?.params || {}) : t.errors.generic()
 }

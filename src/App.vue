@@ -39,7 +39,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch, watchEffect } from 'vue'
 import { useConnectionStore } from './stores/connectionStore'
 import { useRoomStore } from './stores/roomStore'
 import { detectLang, messages } from './i18n'
@@ -61,6 +61,7 @@ const roomStore = useRoomStore()
 const lang = ref(detectLang())
 const t = computed(() => messages[lang.value])
 watch(lang, (l) => { document.documentElement.lang = l }, { immediate: true })
+/** @param {HTMLElementEventMap['dotrino-lang']} e */
 const onLang = (e) => {
   const l = e?.detail?.lang
   if (l === 'es' || l === 'en') lang.value = l
@@ -77,9 +78,11 @@ watch(() => roomStore.isInRoom, (inRoom) => {
 // El topbar es el dueño del botón y del modal "Mi perfil": le pasamos los
 // pilares (identity + reputation) por propiedad JS y él arma el provider, el
 // avatar del perfil activo y el modal. La app no reimplementa nada de eso.
-const topbarRef = ref(null)
-const identityInst = ref(null)
-const reputationInst = ref(null)
+const topbarRef = ref(/** @type {import('@dotrino/topbar').DotrinoTopbar | null} */ (null))
+// shallowRef y no ref: con `ref` Vue envolvía la identidad en su Proxy reactivo y el
+// topbar recibía el Proxy, que el puente con el iframe no sabe clonar por postMessage.
+const identityInst = shallowRef(/** @type {import('@dotrino/identity').Identity | null} */ (null))
+const reputationInst = shallowRef(/** @type {import('@dotrino/reputation').VaultReputation | null} */ (null))
 
 watchEffect(() => {
   const tb = topbarRef.value

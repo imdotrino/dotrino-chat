@@ -1,6 +1,8 @@
 /**
  * Sanitize user input to prevent XSS attacks
  * Escapes HTML special characters
+ * @param {unknown} input
+ * @returns {string}
  */
 export function sanitize(input) {
   if (!input || typeof input !== 'string') {
@@ -14,6 +16,8 @@ export function sanitize(input) {
 
 /**
  * Validate and sanitize a nickname
+ * @param {unknown} nick
+ * @returns {string}
  */
 export function sanitizeNickname(nick) {
   if (!nick || typeof nick !== 'string') {
@@ -29,6 +33,8 @@ export function sanitizeNickname(nick) {
 
 /**
  * Validate and sanitize message text
+ * @param {unknown} text
+ * @returns {string}
  */
 export function sanitizeMessage(text) {
   if (!text || typeof text !== 'string') {

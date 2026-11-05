@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "type-check": "tsc --noEmit",
+    "type-check": "vue-tsc --noEmit",
     "test:e2e": "node test/sealed-chat.e2e.mjs"
   },
   "dependencies": {
@@ -36,6 +36,7 @@
     "playwright": "1.62.0",
     "typescript": "5.9.3",
     "vite": "^7.3.1",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "vue-tsc": "3.3.13"
   }
 }
